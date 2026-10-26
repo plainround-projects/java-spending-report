@@ -1,0 +1,14 @@
+# Build output and local state
+target/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+*.log
+logs/
+dependency-reduced-pom.xml
+# Environment files with real values
+.env
+# Generated big test input
+*.big.csv
+.omc/
