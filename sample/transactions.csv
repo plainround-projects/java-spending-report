@@ -1,0 +1,26 @@
+date,description,amount,currency,category
+2026-01-03,Corner Grocer,42.17,USD,Groceries
+2026-01-04,Coffee Cart,4.50,USD,Eating Out
+2026-01-05,Rail Pass,"1,204.50",USD,Travel
+2026-01-07,Book Shop,18.99,USD,Books
+31/02/2026,Gym Fees,35.00,USD,Health
+2026-01-09,Pharmacy,12.40,USD,Health
+2026-01-11,Ride Share,-8.00,USD,Travel
+2026-01-12,Corner Grocer,55.03,USD,Groceries
+2026-01-14,Streaming Plan,15.99,USD,
+2026-01-15,Hotel Stay,310.00,EUR,Travel
+2026-01-16,Cinema,24.00,USD,Fun
+2026-01-18,Hardware Store,sixty,USD,Home
+2026-01-20,Corner Grocer,48.60,USD,Groceries
+2026-02-01,Coffee Cart,4.50,USD,Eating Out
+2026-02-02,Utility Bill,89.10,USD
+2026-02-03,Corner Grocer,61.25,USD,Groceries
+2026-02-05,Rail Pass,1,204.50,USD,Travel
+2026-02-08,Book Shop,22.40,USD,Books
+2026-13-10,Pharmacy,16.15,USD,Health
+2026-02-12,Ride Share,19.30,USD,Travel
+2026-02-14,Restaurant,120.00,USD,Eating Out
+2026-02-20,Gym Fees,35.00,USD,Health
+2026-02-22,Cinema,24.00,USD,Fun
+2026-02-25,Storage Unit,45.00,US$,Home
+2026-02-27,Corner Grocer,,USD,Groceries

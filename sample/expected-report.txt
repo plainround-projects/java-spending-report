@@ -1,0 +1,38 @@
+Spending report (USD): 15 rows read, 10 rejected
+
+2026-01
+  Travel        1,204.50
+  Groceries       145.80
+  Fun              24.00
+  Books            18.99
+  Health           12.40
+  Eating Out        4.50
+  total         1,410.19
+
+2026-02
+  Eating Out      124.50
+  Groceries        61.25
+  Health           35.00
+  Fun              24.00
+  Books            22.40
+  Travel           19.30
+  total           286.45
+
+Five largest purchases
+    1,204.50  2026-01-05  Rail Pass (Travel)
+      120.00  2026-02-14  Restaurant (Eating Out)
+       61.25  2026-02-03  Corner Grocer (Groceries)
+       55.03  2026-01-12  Corner Grocer (Groceries)
+       48.60  2026-01-20  Corner Grocer (Groceries)
+
+Rejected rows (10)
+  line 6: date must look like 2026-01-31, got '31/02/2026'
+  line 8: amount must not be null or negative: -8.00
+  line 10: category must not be blank
+  line 11: currency EUR is not the report currency USD
+  line 13: amount is not a number: 'sixty'
+  line 16: expected 5 columns, found 4
+  line 18: expected 5 columns, found 6
+  line 20: date must look like 2026-01-31, got '2026-13-10'
+  line 25: unknown currency code 'US$'
+  line 26: amount is not a number: ''
