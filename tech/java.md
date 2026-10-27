@@ -2656,9 +2656,9 @@ A file with only a header. Status 0 and the exact output `Spending report (USD):
 ## 6. Try it yourself
 
 - `java -version`. Expected: `openjdk version "25..."`.
-- `./mvnw -q -B clean package -DskipTests -Djacoco.skip=true && javap -cp target/classes com.plainround.spend.domain.* 2>/dev/null | head -20` (or `javap -p -cp target/classes <a domain class>`). Expected: the members of a compiled class; for a record you will see `equals`, `hashCode`, `toString` that you never wrote.
+- `./mvnw -q -B clean package -DskipTests -Djacoco.skip=true && javap -cp target/classes com.plainround.spend.domain.Transaction`. Expected: the members of the compiled record, including `public final java.lang.String toString();`, `public final int hashCode();` and `public final boolean equals(java.lang.Object);`, which nobody wrote: Java generated them. `javap` is the JDK tool that shows what is inside a `.class` file.
 - `find src/main/java -name '*.java' | head -30`. Expected: the file list that matches the layers in the README's project-structure tree.
-- `jshell`, then `record P(int x, int y) {}` and `new P(1,2).equals(new P(1,2))`. Expected: `$2 ==> true`.
+- `jshell`, then `record P(int x, int y) {}` and `new P(1,2).equals(new P(1,2))`. Expected: `$2 ==> true` (the number after `$` is the snippet number).
 - `./mvnw -B test | grep 'Tests run:' | tail -1`. Expected: the total of 57 tests with no failures.
 
 ## 7. Mistakes people make

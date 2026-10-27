@@ -230,7 +230,7 @@ clean: down
 - `make -n test`. Expected: prints the command that `make test` would run, without running it (`-n` is a dry run).
 - `make up` then `make -n run`. Expected: only the `java -jar ...` line, because the jar already exists.
 - `make lint test` in one go. Expected: both run, in order, and the second only starts if the first passed.
-- `make nonsense`. Expected: `make: *** No rule to make target 'nonsense'.  Stop.`
+- `make nonsense`. Expected: ``make: *** No rule to make target `nonsense'.  Stop.`` (GNU Make 3.81 writes the name between a backtick and an apostrophe).
 
 ## 7. Mistakes people make
 

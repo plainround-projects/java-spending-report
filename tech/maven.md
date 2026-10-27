@@ -22,11 +22,22 @@ The lesson asks for a project that anyone can build with one command and get the
 ## 4. How it works underneath
 
 1. **You type `./mvnw ...`.** The wrapper script starts a JVM (a running Java) that runs Maven. Maven reads `pom.xml`. It also reads the built-in "super pom", a pom that every pom silently inherits from; it supplies defaults such as the standard folder names and the plugins for the default lifecycle. The combination is the *effective pom*.
-2. **Maven builds a plan from the **lifecycle**.** The default lifecycle is a fixed list of **phase**s: `validate`, `compile`, `test`, `package`, `verify`, `install`, `deploy` (and a few others in between). Asking for a phase runs it and every earlier phase. Each phase is just a name; the work is done by **plugin** **goal**s *bound* to phases. For a project with `<packaging>jar</packaging>`, Maven binds the standard ones: `resources:resources` and `compiler:compile` to `process-resources` and `compile`, `resources:testResources` and `compiler:testCompile`, `surefire:test` to `test`, and `jar:jar` to `package`. The pom adds more: Enforcer, JaCoCo, Shade.
+2. **Maven builds a plan.** The default **lifecycle** is a fixed list of steps, each called a **phase**: `validate`, `compile`, `test`, `package`, `verify`, `install`, `deploy` (and a few others in between). Asking for a phase runs it and every earlier phase. A phase is only a name; the work is done by the jobs of **plugin**s, each job being a **goal**, *bound* to phases. For a project with `<packaging>jar</packaging>`, Maven binds the standard ones: `resources:resources` and `compiler:compile` to `process-resources` and `compile`, `resources:testResources` and `compiler:testCompile`, `surefire:test` to `test`, and `jar:jar` to `package`. The pom adds more: Enforcer, JaCoCo, Shade.
 3. **The real order for `./mvnw -B clean verify` in this repository** (taken from an actual run): `clean:clean` (delete `target/`); `enforcer:enforce` (check the build rules); `jacoco:prepare-agent` (prepare the coverage option); `resources:resources` (copy `src/main/resources`, such as `logback.xml`, to `target/classes`); `compiler:compile` (compile the program); `resources:testResources` and `compiler:testCompile` (the same for the tests); `surefire:test` (run all tests); `jacoco:report` (write the coverage report); `jar:jar` (make the plain jar); `shade:shade` (replace it by the single jar with all libraries); `jacoco:check` (fail if coverage rules are broken). The lines `Rule 0` to `Rule 4 ... passed` come from Enforcer, the lines `Tests run: N, Failures: 0, Errors: 0, Skipped: 0` from Surefire, and `All coverage checks have been met.` from JaCoCo.
 4. **Libraries.** Maven reads the **dependency** list, takes the **coordinates (groupId, artifactId, version)** of each, and looks in the local repository (`~/.m2/repository`) for the file. If it is missing it downloads it from **Maven Central** over HTTPS, together with the libraries that library needs (**transitive dependency**). If two paths want different versions of the same library, Maven uses the one nearest to your project in the dependency tree, and the Enforcer rule `requireUpperBoundDeps` checks that this never means a lower version than someone asked for.
 5. **Output.** Everything written goes to `target/`: `target/classes` (compiled program), `target/test-classes`, `target/surefire-reports` (test results), `target/site/jacoco` (coverage) and the jar `target/spend.jar`.
 6. **Command-line options** used in this repository: `-q` (quiet), `-B` (batch mode: plain text without colors or progress bars, best for logs and CI), `-D name=value` (sets a property, for example `-DskipTests`), `-Dtest=ClassName` (runs only that test class), `-o` (offline: do not touch the network).
+
+> New words:
+>
+> - **lifecycle**: the fixed ordered list of phases. `mvn package` runs validate, compile, test and package in that order.
+> - **phase**: a named step in Maven's fixed sequence: `validate`, `compile`, `test`, `package`, `verify`, `install`, `deploy`. Asking Maven for a phase runs all the earlier phases first. A plugin goal is *bound* to a phase to say when it runs.
+> - **plugin**: a program that Maven runs to do one kind of work (compile, test, package, format, check). Plugins are Maven's only way of doing anything; Maven itself only reads the pom and runs plugins in order.
+> - **goal**: one named job of a plugin, written `plugin:goal`, such as `spotless:check` or `jacoco:report`.
+> - **dependency**: a library your code needs. You list its coordinates and Maven downloads it. The libraries *it* needs are fetched too (transitive dependencies).
+> - **coordinates (groupId, artifactId, version)**: the three values that identify a library or plugin in the Maven world: `groupId` says who made it (a reversed web name such as `org.slf4j`), `artifactId` is its own name (`slf4j-api`), `version` says which release. Together they are written `groupId:artifactId:version` and tell Maven exactly which file to fetch from the repository.
+> - **Maven Central**: the big public warehouse of Java libraries on the internet (`repo.maven.apache.org`). Maven downloads the files named by your coordinates from it, and keeps a copy in the folder `~/.m2/repository` on your computer, so each file is downloaded only once.
+> - **transitive dependency**: a library that one of your libraries needs. You do not list it, but Maven finds it in that library's own pom and downloads it too.
 
 ## 5. Walkthrough of this repository's use
 
@@ -495,7 +506,7 @@ The closing tags: the end of `<plugins>`, of `<build>` and finally of `<project>
 - Package only: `./mvnw -q -B clean package -DskipTests -Djacoco.skip=true`. Expected: no output, and the file `target/spend.jar` exists (`ls -l target/spend.jar`).
 - See the order of plugins: `./mvnw -B clean verify | grep -- '--- '`. Expected: the twelve lines listed in the walkthrough above, from `clean:3.5.0:clean` to `jacoco:0.8.16:check`.
 - See the dependency tree: `./mvnw dependency:tree`. Expected: a tree starting with `com.plainround:spend:jar:0.1.0` with `slf4j-api`, `logback-classic` (and its `logback-core`) and the test libraries below it.
-- Print the effective settings: `./mvnw help:effective-pom -q | head -40`. Expected: the pom with every default that Maven filled in.
+- Print the effective settings: `./mvnw -q -B help:effective-pom -Doutput=target/effective-pom.xml && head -12 target/effective-pom.xml`. Expected: a file that begins with an XML declaration and the comment `Effective POM for project 'com.plainround:' + r.art + ':jar:0.1.0'`, followed by the pom with every default that Maven filled in.
 
 ## 7. Mistakes people make
 
@@ -504,6 +515,10 @@ The closing tags: the end of `<plugins>`, of `<build>` and finally of `<project>
 - Putting a test-only library in the default **scope**, so it ends up inside the shipped jar. Here the test libraries have `<scope>test</scope>`.
 - Running Maven with a Java older than the `release`. The error is `release version 25 not supported`; the Enforcer rule `requireJavaVersion` prints a clearer message first.
 - Editing files in `target/`. The next build overwrites them and git ignores them.
+
+> New words:
+>
+> - **scope**: says when a dependency is needed: `compile` (the default: to compile and to run), `runtime` (only to run), `test` (only when compiling and running the tests). A `test` library is never put into the shipped jar.
 
 ## 8. Check yourself
 
@@ -524,15 +539,3 @@ The closing tags: the end of `<plugins>`, of `<build>` and finally of `<project>
 - Build lifecycle: https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html
 - POM reference: https://maven.apache.org/pom.html
 - Compiler plugin 3.16.0: https://maven.apache.org/plugins/maven-compiler-plugin/ ; Surefire 3.6.1: https://maven.apache.org/surefire/maven-surefire-plugin/
-
-> New words:
->
-> - **lifecycle**: the fixed ordered list of phases. `mvn package` runs validate, compile, test and package in that order.
-> - **phase**: a named step in Maven's fixed sequence: `validate`, `compile`, `test`, `package`, `verify`, `install`, `deploy`. Asking Maven for a phase runs all the earlier phases first. A plugin goal is *bound* to a phase to say when it runs.
-> - **plugin**: a program that Maven runs to do one kind of work (compile, test, package, format, check). Plugins are Maven's only way of doing anything; Maven itself only reads the pom and runs plugins in order.
-> - **goal**: one named job of a plugin, written `plugin:goal`, such as `spotless:check` or `jacoco:report`.
-> - **dependency**: a library your code needs. You list its coordinates and Maven downloads it. The libraries *it* needs are fetched too (transitive dependencies).
-> - **coordinates (groupId, artifactId, version)**: the three values that identify a library or plugin in the Maven world: `groupId` says who made it (a reversed web name such as `org.slf4j`), `artifactId` is its own name (`slf4j-api`), `version` says which release. Together they are written `groupId:artifactId:version` and tell Maven exactly which file to fetch from the repository.
-> - **Maven Central**: the big public warehouse of Java libraries on the internet (`repo.maven.apache.org`). Maven downloads the files named by your coordinates from it, and keeps a copy in the folder `~/.m2/repository` on your computer, so each file is downloaded only once.
-> - **transitive dependency**: a library that one of your libraries needs. You do not list it, but Maven finds it in that library's own pom and downloads it too.
-> - **scope**: says when a dependency is needed: `compile` (the default: to compile and to run), `runtime` (only to run), `test` (only when compiling and running the tests). A `test` library is never put into the shipped jar.

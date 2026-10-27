@@ -99,7 +99,7 @@ Opens `com.sun.tools.javac.code`, the compiler's symbols and types. All six are 
 # ----------------------------------------------------------------------------
 ```
 
-The first line, `#!/bin/sh`, is the **shebang**: when you run `./mvnw`, the system starts the program `/bin/sh` (the basic Unix **terminal and shell** shell) and gives it this file to read. The file is therefore a **shell script**. It is written for plain `sh`, the lowest common denominator, so it runs on macOS, Linux and in Git Bash on Windows.
+The first line, `#!/bin/sh`, is the **shebang**: when you run `./mvnw`, the system starts the program `/bin/sh` (the basic Unix command interpreter, see **terminal and shell**) and gives it this file to read. The file is therefore a **shell script**. It is written for plain `sh`, the lowest common denominator, so it runs on macOS, Linux and in Git Bash on Windows.
 
 > New words:
 >

@@ -67,7 +67,7 @@ In Markdown two trailing spaces mean a forced line break, so trimming trailing w
 
 - `cat .editorconfig`. Expected: the file shown above.
 - Open a Java file in an editor with EditorConfig support, press Tab. Expected: two spaces.
-- `grep -c $'\t' src/main/java/**/*.java 2>/dev/null | head -3` (or `grep -rlP '\t' src/main/java`). Expected: no files listed (no tabs in Java files).
+- `grep -rl "$(printf '\t')" src/main/java`. Expected: no output, meaning no Java file contains a tab character (the Checkstyle rule `FileTabCharacter` enforces it).
 
 ## 7. Mistakes people make
 

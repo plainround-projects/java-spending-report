@@ -105,7 +105,7 @@ Every one of the four files is explained line by line in its own technology note
 
 - `xmllint --noout pom.xml config/checkstyle.xml src/main/resources/logback.xml` (xmllint ships with macOS). Expected: no output, which means the files are well-formed.
 - In a scratch copy delete one closing tag and rerun. Expected: an error naming the line, such as `Opening and ending tag mismatch`.
-- `./mvnw help:effective-pom -q | head -20`. Expected: the pom as Maven sees it.
+- `./mvnw -q -B help:effective-pom -Doutput=target/effective-pom.xml && head -12 target/effective-pom.xml`. Expected: a file that begins with the XML declaration and a comment box "Effective POM for project ...": the pom as Maven sees it, with every default filled in.
 
 ## 7. Mistakes people make
 

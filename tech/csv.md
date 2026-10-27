@@ -333,8 +333,8 @@ The file has two lines. Its first three bytes, shown by `od -c` as `357 273 277`
 ## 6. Try it yourself
 
 - `head -5 sample/transactions.csv`. Expected: the header and four rows; the third data row has `"1,204.50"`.
-- `awk -F, '{print NF}' sample/transactions.csv | sort | uniq -c`. Expected: counts of lines with 5, 4, 6 fields (a naive split by comma shows why the quoted row and the unquoted row differ).
-- `make bom`. Expected: `1 rows read, 0 rejected` and `Café Noir`.
+- `awk -F, '{print NF}' sample/transactions.csv | sort | uniq -c`. Expected: `   1 4`, `  23 5`, `   2 6`: one line with 4 fields, 23 with 5 and two with 6. The two six-field lines are line 4 (the *good* row with the quoted `"1,204.50"`) and line 18 (the bad row with the same amount unquoted): a naive comma count cannot tell them apart, which is the lesson's first trap.
+- `make bom`. Expected: the line `Spending report (USD): 1 rows read, 0 rejected` and a purchase line ending `Café Noir (Eating Out)`.
 - `xxd sample/bom-and-accent.csv | head -2`. Expected: the first bytes `ef bb bf` (the BOM) before `date,description`.
 - `make run`. Expected: the lesson report with the ten rejected lines.
 

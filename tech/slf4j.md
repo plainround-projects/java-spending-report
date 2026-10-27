@@ -25,6 +25,10 @@ The repository wants structured logging with levels and no secrets. The code wri
 5. **Key=value style.** Every message in this repository is written as `words key={} key={}` so that a tool can split a line into fields.
 6. If no provider is found, SLF4J prints a warning once and logs nothing (a "no-operation" logger).
 
+> New words:
+>
+> - **environment variable**: a named text setting that a program inherits from the process that started it, for example `LOG_LEVEL=DEBUG`. Programs read them to be configured without changing code.
+
 ## 5. Walkthrough of this repository's use
 
 ### The logger declaration
@@ -43,7 +47,8 @@ The `slf4j-api` jar is the only logging library the code compiles against. No cl
 ## 6. Try it yourself
 
 - `grep -rn 'LoggerFactory' src/main/java | head`. Expected: one `Logger LOG = LoggerFactory.getLogger(...)` line per class that logs.
-- Run the program and look at standard error (see the README for the command), with `LOG_LEVEL=DEBUG` before the command. Expected: extra `level=DEBUG` lines appear.
+- `java -jar target/spend.jar sample/transactions.csv >/dev/null`. Expected: two lines on the screen, both `level=INFO`: `reading file path=sample/transactions.csv` and `report done rows=15 rejected=10` (`>/dev/null` hides the report on standard output, so only the log on standard error is left).
+- `LOG_LEVEL=ERROR java -jar target/spend.jar sample/transactions.csv >/dev/null`. Expected: no log lines at all, because no ERROR was logged.
 - `./mvnw dependency:tree | grep -i slf4j`. Expected: `org.slf4j:slf4j-api:jar:2.0.20:compile`.
 
 ## 7. Mistakes people make
@@ -71,7 +76,3 @@ The `slf4j-api` jar is the only logging library the code compiles against. No cl
 - SLF4J 2.0 manual: https://www.slf4j.org/manual.html
 - Fluent logging API (2.0): https://www.slf4j.org/manual.html#fluent
 - SLF4J FAQ: https://www.slf4j.org/faq.html
-
-> New words:
->
-> - **environment variable**: a named text setting that a program inherits from the process that started it, for example `LOG_LEVEL=DEBUG`. Programs read them to be configured without changing code.

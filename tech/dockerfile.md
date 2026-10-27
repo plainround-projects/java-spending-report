@@ -26,6 +26,10 @@ The repository promises a multi-stage image that runs as a non-root user, with p
 5. **The Docker engine on macOS** runs inside a small Linux virtual machine, because containers need a Linux kernel. Files and ports are shared with the Mac by Docker Desktop.
 6. **Try it:** `docker run --rm -v "$PWD/sample":/data:ro plainround/spend:0.1.0 /data/transactions.csv` (the exit status is 2).
 
+> New words:
+>
+> - **layer and build cache**: every instruction in a Dockerfile that changes files produces a layer, a saved set of file changes. Docker keeps layers; when you build again, it reuses all layers up to the first instruction (or copied file) that changed. So instructions that rarely change go first, and files that change often go last.
+
 ## 5. Walkthrough of this repository's use
 
 ### `Dockerfile`
@@ -208,7 +212,3 @@ target
 - Dockerfile reference: https://docs.docker.com/reference/dockerfile/
 - Multi-stage builds: https://docs.docker.com/build/building/multi-stage/
 - Eclipse Temurin images: https://hub.docker.com/_/eclipse-temurin
-
-> New words:
->
-> - **layer and build cache**: every instruction in a Dockerfile that changes files produces a layer, a saved set of file changes. Docker keeps layers; when you build again, it reuses all layers up to the first instruction (or copied file) that changed. So instructions that rarely change go first, and files that change often go last.

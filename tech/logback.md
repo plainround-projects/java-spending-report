@@ -131,9 +131,9 @@ The root level is fixed at `WARN`, so the test output shows only problems, not h
 
 ## 6. Try it yourself
 
-- Run any program of this repository with a level, e.g. `LOG_LEVEL=DEBUG java -jar target/spend.jar ...` (see the README for the arguments). Expected: more lines, each `ts=... level=DEBUG ...`.
-- `unzip -p target/spend.jar logback.xml`. Expected: the same file, inside the jar.
-- `LOG_LEVEL=ERROR java -jar ...`. Expected: almost no log lines.
+- `java -jar target/spend.jar sample/transactions.csv >/dev/null`. Expected: two lines on the screen, both `level=INFO`: `reading file path=sample/transactions.csv` and `report done rows=15 rejected=10` (`>/dev/null` hides the report on standard output, so only the log on standard error is left).
+- `LOG_LEVEL=ERROR java -jar target/spend.jar sample/transactions.csv >/dev/null`. Expected: no log lines at all, because no ERROR was logged.
+- `unzip -p target/spend.jar logback.xml`. Expected: the same file as above, inside the jar.
 
 ## 7. Mistakes people make
 
