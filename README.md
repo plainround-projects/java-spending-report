@@ -139,6 +139,7 @@ config/              checkstyle.xml.
 sample/              the lesson's 25-row file, its expected report and two small inputs.
 scripts/             generate-big-csv.sh (stream-check) and prove-quote-test.sh (quote-check).
 docs/adr/            decision records.
+tech/                one beginner note per technology used here, read through this repository's own files (start at tech/README.md).
 .github/workflows/   ci.yml: format, lint, tests with coverage, dependency audit.
 pom.xml, mvnw, .mvn/ Maven build and the checked-in wrapper. Dockerfile: multi-stage image, non-root.
 Makefile             the only commands a reader needs (make help).
