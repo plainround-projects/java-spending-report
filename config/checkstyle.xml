@@ -15,7 +15,7 @@
     <property name="message" value="Trailing whitespace"/>
   </module>
   <module name="RegexpSingleline">
-    <property name="format" value="§"/>
+    <property name="format" value="\u00A7"/>
     <property name="message" value="Write 'Section N', never the section sign"/>
   </module>
 
