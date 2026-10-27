@@ -92,6 +92,244 @@ The file reader skips line 1 and counts lines from 1, so a rejected row can say 
   }
 ```
 
+### `sample/transactions.csv`, line by line
+
+```csv
+date,description,amount,currency,category
+```
+
+Line 1 is the **header**: the five column names. The reader skips it but counts it as line 1, which is why the first data row is "line 2" in the report.
+
+```csv
+2026-01-03,Corner Grocer,42.17,USD,Groceries
+```
+
+Line 2, a good row: a date in the form `2026-01-03`, a description, the amount `42.17`, the currency `USD` and the category `Groceries`.
+
+```csv
+2026-01-04,Coffee Cart,4.50,USD,Eating Out
+```
+
+Line 3, good: amount `4.50`, category `Eating Out` (a category may contain spaces).
+
+```csv
+2026-01-05,Rail Pass,"1,204.50",USD,Travel
+```
+
+Line 4, good, and the first trap: the amount is written `"1,204.50"` in double quotes because it contains a comma. A splitter that cuts at every comma would see six fields; the quote-aware splitter sees five.
+
+```csv
+2026-01-07,Book Shop,18.99,USD,Books
+```
+
+Line 5, good: `18.99`, `Books`.
+
+```csv
+31/02/2026,Gym Fees,35.00,USD,Health
+```
+
+Line 6, **rejected**: the date is written day/month/year and 31 February does not exist. Reason: `date must look like 2026-01-31, got '31/02/2026'`.
+
+```csv
+2026-01-09,Pharmacy,12.40,USD,Health
+```
+
+Line 7, good: `12.40`, `Health`.
+
+```csv
+2026-01-11,Ride Share,-8.00,USD,Travel
+```
+
+Line 8, **rejected**: a negative amount (`-8.00`). Reason: `amount must not be null or negative: -8.00`.
+
+```csv
+2026-01-12,Corner Grocer,55.03,USD,Groceries
+```
+
+Line 9, good: `55.03`, `Groceries`.
+
+```csv
+2026-01-14,Streaming Plan,15.99,USD,
+```
+
+Line 10, **rejected**: five fields, but the last (the category) is empty, so the row ends with a comma. Reason: `category must not be blank`.
+
+```csv
+2026-01-15,Hotel Stay,310.00,EUR,Travel
+```
+
+Line 11, **rejected**: the currency is `EUR` but the report is in `USD`. Reason: `currency EUR is not the report currency USD`.
+
+```csv
+2026-01-16,Cinema,24.00,USD,Fun
+```
+
+Line 12, good: `24.00`, `Fun`.
+
+```csv
+2026-01-18,Hardware Store,sixty,USD,Home
+```
+
+Line 13, **rejected**: the amount is the word `sixty`. Reason: `amount is not a number: 'sixty'`.
+
+```csv
+2026-01-20,Corner Grocer,48.60,USD,Groceries
+```
+
+Line 14, good: `48.60`. With lines 2 and 9, January groceries are 42.17 + 55.03 + 48.60 = 145.80.
+
+```csv
+2026-02-01,Coffee Cart,4.50,USD,Eating Out
+```
+
+Line 15, good: the first February row.
+
+```csv
+2026-02-02,Utility Bill,89.10,USD
+```
+
+Line 16, **rejected**: only four fields, the category is missing altogether. Reason: `expected 5 columns, found 4`.
+
+```csv
+2026-02-03,Corner Grocer,61.25,USD,Groceries
+```
+
+Line 17, good: `61.25`.
+
+```csv
+2026-02-05,Rail Pass,1,204.50,USD,Travel
+```
+
+Line 18, **rejected**: the same amount as line 4, but *without* quotes, so the comma splits it and the row has six fields. Reason: `expected 5 columns, found 6`.
+
+```csv
+2026-02-08,Book Shop,22.40,USD,Books
+```
+
+Line 19, good: `22.40`.
+
+```csv
+2026-13-10,Pharmacy,16.15,USD,Health
+```
+
+Line 20, **rejected**: month 13. Reason: `date must look like 2026-01-31, got '2026-13-10'`.
+
+```csv
+2026-02-12,Ride Share,19.30,USD,Travel
+```
+
+Line 21, good: `19.30`.
+
+```csv
+2026-02-14,Restaurant,120.00,USD,Eating Out
+```
+
+Line 22, good: `120.00`, `Eating Out`.
+
+```csv
+2026-02-20,Gym Fees,35.00,USD,Health
+```
+
+Line 23, good: `35.00`.
+
+```csv
+2026-02-22,Cinema,24.00,USD,Fun
+```
+
+Line 24, good: `24.00`.
+
+```csv
+2026-02-25,Storage Unit,45.00,US$,Home
+```
+
+Line 25, **rejected**: the currency `US$` is not a real code. Reason: `unknown currency code 'US$'`.
+
+```csv
+2026-02-27,Corner Grocer,,USD,Groceries
+```
+
+Line 26, **rejected**: the amount field is empty (two commas in a row). Reason: `amount is not a number: ''`. The file has 26 lines: 1 header, 15 good rows and 10 rejected rows, which is the "15 rows read, 10 rejected" of the report.
+
+### `sample/expected-report.txt`, section by section
+
+```text
+Spending report (USD): 15 rows read, 10 rejected
+```
+
+The first line of the report: the currency, the number of good rows (15) and the number of rejected rows (10).
+
+```text
+2026-01
+  Travel        1,204.50
+  Groceries       145.80
+  Fun              24.00
+  Books            18.99
+  Health           12.40
+  Eating Out        4.50
+  total         1,410.19
+```
+
+One section per month, in calendar order. Under the month: one line per category, the biggest total first, with the amounts right-aligned and shown with two decimals and a thousands comma; then the `total` line, the exact sum rounded once. January: 1,204.50 + 145.80 + 24.00 + 18.99 + 12.40 + 4.50 = 1,410.19.
+
+```text
+2026-02
+  Eating Out      124.50
+  Groceries        61.25
+  Health           35.00
+  Fun              24.00
+  Books            22.40
+  Travel           19.30
+  total           286.45
+```
+
+February in the same form: Eating Out is 4.50 + 120.00 = 124.50; the total is 286.45.
+
+```text
+Five largest purchases
+    1,204.50  2026-01-05  Rail Pass (Travel)
+      120.00  2026-02-14  Restaurant (Eating Out)
+       61.25  2026-02-03  Corner Grocer (Groceries)
+       55.03  2026-01-12  Corner Grocer (Groceries)
+       48.60  2026-01-20  Corner Grocer (Groceries)
+```
+
+The five biggest single purchases of the whole file, biggest first; a tie would be broken by the earlier date, then by description.
+
+```text
+Rejected rows (10)
+  line 6: date must look like 2026-01-31, got '31/02/2026'
+  line 8: amount must not be null or negative: -8.00
+  line 10: category must not be blank
+  line 11: currency EUR is not the report currency USD
+  line 13: amount is not a number: 'sixty'
+  line 16: expected 5 columns, found 4
+  line 18: expected 5 columns, found 6
+  line 20: date must look like 2026-01-31, got '2026-13-10'
+  line 25: unknown currency code 'US$'
+  line 26: amount is not a number: ''
+```
+
+The rejected rows with their line numbers in the file (the header is line 1) and their reasons: the same ten lines explained above. The count in brackets is exact even when fewer rows are shown.
+
+### `sample/cents.csv`
+
+```csv
+date,description,amount,currency,category
+```
+
+The header line.
+
+```csv
+2026-03-01,Penny Sweets,0.10,USD,Treats
+2026-03-02,Penny Sweets,0.20,USD,Treats
+```
+
+Two rows of 0.10 and 0.20 in the same category. In `double` arithmetic they would add up to 0.30000000000000004; with `BigDecimal` the total is exactly 0.30. `make cents` shows it.
+
+### `sample/bom-and-accent.csv`
+
+The file has two lines. Its first three bytes, shown by `od -c` as `357 273 277` (hexadecimal `EF BB BF`), are the UTF-8 **byte-order mark**; they are followed by the header `date,description,...`. The second line is `2026-03-01,Café Noir,3.20,USD,Eating Out`; the `é` is stored as the two bytes `303 251` (`C3 A9`), which is how UTF-8 writes it. Read with the wrong encoding the description would show as `CafÃ© Noir`; read without removing the mark, the first header would be `\ufeffdate`. `make bom` shows the correct result.
+
 ## 6. Try it yourself
 
 - `head -5 sample/transactions.csv`. Expected: the header and four rows; the third data row has `"1,204.50"`.

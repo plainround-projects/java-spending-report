@@ -2,11 +2,11 @@
 
 ## 1. What it is
 
-ArchUnit is a library that checks the **structure** of your code in a unit test. It reads the compiled `.class` files, builds a model of which class uses which, and lets you write rules such as "classes in `domain` may not use classes in `infrastructure`". A broken rule fails the test like any other.
+Good code has a **structure**: some parts may use others, but not the other way round. In a README this is only a wish; a person can forget it in a hurry. **ArchUnit** is a library that turns the wish into a test. It reads the compiled `.class` files, builds a model of which class uses which, and lets you write rules such as "classes in `domain` may not use classes in `infrastructure`". A broken rule fails the test like any other test.
 
 ## 2. Why this repository uses it
 
-The repository's design is layered: the domain depends on nothing, the application on the domain, the infrastructure and interfaces on both, and nothing on interfaces. A rule written in a README is only a wish; ArchUnit makes it a test that runs on every `make test`.
+The repository's design is layered: the domain depends on nothing, the application on the domain, the infrastructure and interfaces on both, and nothing on interfaces. ArchUnit makes this a test that runs on every `make test`.
 
 ## 3. Where it appears
 
@@ -18,67 +18,31 @@ The repository's design is layered: the domain depends on nothing, the applicati
 
 ## 4. How it works underneath
 
-- ArchUnit uses a library that reads bytecode (the `.class` files) without running the program.
-- It builds a graph: nodes are classes, edges are "uses" relations (method calls, field types, inheritance, annotations).
-- A rule is a query on the graph. `layeredArchitecture()` builds the query from your layer definitions; `noClasses().that()...should()...` builds a custom one.
-- If the query finds a violation, the test fails with a list of the offending classes and lines.
+1. ArchUnit reads bytecode (the `.class` files) without running the program.
+2. It builds a graph: nodes are classes, edges are "uses" relations (method calls, field types, inheritance, annotations).
+3. A rule is a query on the graph. `layeredArchitecture()` builds the query from your layer definitions; `noClasses().that()...should()...` builds a custom one. The statements read almost like English.
+4. If the query finds a violation, the test fails with a list of the offending classes and lines. The JUnit 5 integration (the dependency `archunit-junit5`) treats every `static final ArchRule` field marked `@ArchTest` as a test, so the class has no `@Test` methods.
+5. Package patterns end in `..` to mean "this package and every package below it"; a single `.*` means one level only.
 
 ## 5. Walkthrough of this repository's use
 
-```java
-@AnalyzeClasses(
-    packages = "com.plainround.spend",
-    importOptions = ImportOption.DoNotIncludeTests.class)
-class ArchitectureTest {
-```
+### Every ArchUnit method used in this repository
 
-`@AnalyzeClasses` tells ArchUnit which compiled classes to read: everything under `com.plainround.spend`. `ImportOption.DoNotIncludeTests` leaves the test classes out, so the rules judge production code only. The class has no `@Test` methods: ArchUnit's JUnit 5 integration (the dependency `archunit-junit5`) runs every `static final ArchRule` field marked `@ArchTest` as a test.
+| Method | What it does |
+| --- | --- |
+| `consideringOnlyDependenciesInLayers` | ignores dependencies on classes that belong to no declared layer (the JDK, libraries). |
+| `definedBy` | says which packages form the layer just declared. |
+| `dependOnClassesThat` | classes that use (call, extend, have a field of) the described classes. |
+| `layer` | declares a layer by name. |
+| `mayNotBeAccessedByAnyLayer` | no layer may use the layer. |
+| `mayOnlyBeAccessedByLayers` | only the listed layers may use the layer. |
+| `resideInAPackage` | (in `that()`) classes in this package pattern; (in `dependOnClassesThat()`) classes in it as the *dependency*. |
+| `resideInAnyPackage` | classes in any of the given package patterns. |
+| `should` | ends the subject and begins the condition. |
+| `that` | narrows the kind of class the rule is about. |
+| `whereLayer` | starts an access rule for a named layer. |
 
-```java
-  private static final String DOMAIN = "com.plainround.spend.domain..";
-  private static final String APPLICATION = "com.plainround.spend.application..";
-  private static final String INFRASTRUCTURE = "com.plainround.spend.infrastructure..";
-  private static final String INTERFACES = "com.plainround.spend.interfaces..";
-```
-
-These are **package patterns**. `..` at the end means "this package and all packages below it".
-
-```java
-  static final ArchRule layersOnlyDependDownwards =
-      layeredArchitecture()
-          .consideringOnlyDependenciesInLayers()
-          .layer("domain")
-          .definedBy(DOMAIN)
-          .layer("application")
-          .definedBy(APPLICATION)
-          .layer("infrastructure")
-          .definedBy(INFRASTRUCTURE)
-          .layer("interfaces")
-          .definedBy(INTERFACES)
-          .whereLayer("interfaces")
-          .mayNotBeAccessedByAnyLayer()
-          .whereLayer("infrastructure")
-          .mayOnlyBeAccessedByLayers("interfaces")
-          .whereLayer("application")
-          .mayOnlyBeAccessedByLayers("infrastructure", "interfaces")
-          .whereLayer("domain")
-          .mayOnlyBeAccessedByLayers("application", "infrastructure", "interfaces");
-
-  @ArchTest
-```
-
-`layeredArchitecture()` is a ready-made rule type. `consideringOnlyDependenciesInLayers()` ignores dependencies on anything outside the four layers (the JDK, libraries). Each `.layer(name).definedBy(pattern)` names a layer. Each `whereLayer(name)...` line limits who may use it: `interfaces` may not be used by any layer; `infrastructure` only by `interfaces`; `application` only by `infrastructure` and `interfaces`; `domain` by all three above it. Read together: the arrows only point towards the domain.
-
-The next rules add specific bans (the exact packages differ per project; see the file). For this project:
-
-```java
-      noClasses()
-          .that()
-          .resideInAPackage(DOMAIN)
-          .should()
-          .dependOnClassesThat()
-          .resideInAnyPackage(APPLICATION, INFRASTRUCTURE, INTERFACES, "org.slf4j..", "ch.qos..");
-```
+Each rule of `ArchitectureTest.java` is quoted and explained in `java.md` (Part B of its walkthrough).
 
 ## 6. Try it yourself
 

@@ -2,64 +2,55 @@
 
 ## 1. What it is
 
-AssertJ is a library of **assertions**: statements that check a result in a test. Its style is a fluent chain, `assertThat(value).isEqualTo(expected)`, where each step returns an object for the next. Error messages name both the expected and the actual value.
+An **assertion** is a statement in a test that says what must be true: "this total equals 12.50". If it is not true, the test fails. AssertJ is a library of assertions with a *fluent* style: `assertThat(value).isEqualTo(expected)` reads left to right like a sentence, and each step returns an object so another check can follow. When one fails, the message shows both the expected and the actual value.
 
 ## 2. Why this repository uses it
 
-The repository rule says test names read as behavior. AssertJ makes the body read the same way, and its failure messages explain the failure without a debugger.
+The repository rule says test names read as behavior. AssertJ makes the body read the same way, and its failure messages explain a failure without a debugger.
 
 ## 3. Where it appears
 
 | File | What it does with the technology |
 | --- | --- |
 | `pom.xml` | `org.assertj:assertj-core:${assertj.version}`, scope `test` |
-| `src/test/java/**` | almost every test imports `org.assertj.core.api.Assertions.assertThat` |
+| `src/test/java/**` | almost every test imports `org.assertj.core.api.Assertions.assertThat` and often `assertThatThrownBy` |
 
 ## 4. How it works underneath
 
-- AssertJ is plain Java classes; there is no agent and no magic. `assertThat` is a family of overloaded static methods; the compiler picks the one that matches the type of its argument.
-- A failed assertion throws `AssertionError`. JUnit sees the exception and marks the test as failed.
-- The assertion objects are immutable-style builders: each call checks something and returns the same object so you can continue.
+1. `assertThat(actual)` is one of many overloaded static methods. The compiler picks the one that matches the type of its argument, and each returns a different assertion object with methods that make sense for that type: a `String` gets `startsWith`, a collection gets `hasSize`, an `Optional` gets `hasValue`.
+2. Each check method tests something. If it holds, it returns the same assertion object so that a further check can be chained. If not, it throws an `AssertionError` whose text begins `Expecting actual:` and shows the values; JUnit sees the error and marks the test failed.
+3. `assertThatThrownBy(() -> code)` runs the code inside the lambda and expects it to throw; the checks that follow apply to the thrown exception. If nothing is thrown, the test fails.
+4. A bare `assertThat(x)` with no check checks nothing. A chain must end with a check method.
 
 ## 5. Walkthrough of this repository's use
 
-Every assertion in this repository starts with a static import of `assertThat`, so tests read from left to right:
+### Every assertion method used in this repository
 
-```java
-import static org.assertj.core.api.Assertions.assertThat;
-```
+These are all the methods that appear in a chain after `assertThat(...)` or `assertThatThrownBy(...)` in `src/test/java`. Their use in each test is explained in `java.md`.
 
-```java
-  @Test
-  void aGoodRowBecomesATransactionWithTheExactAmount() {
-    ParsedRow result = parser.parse(2, "2026-01-03,Corner Grocer,42.17,USD,Groceries");
+| Method | What it checks | Used in |
+| --- | --- | --- |
+| `contains` | a text contains each given piece, or a collection contains each given element (in any position). | `LessonScenarioTest.java`, `SpendCliTest.java` |
+| `containsExactly` | a collection holds exactly the given elements in exactly that order. | `CsvRowParserEdgeCasesTest.java`, `SpendingAccumulatorTest.java` |
+| `containsPattern` | a text contains a match for the given regular expression. | `SpendCliTest.java` |
+| `doesNotContain` | a text or collection contains none of the given pieces. | `SpendCliTest.java` |
+| `extracting` | turns each element of a collection into one of its properties (given as a method reference such as `MonthlyTotals::month`), so the next check applies to those values. | `SpendingAccumulatorTest.java` |
+| `hasMessage` | an exception's message equals the given text exactly. | `TransactionTest.java` |
+| `hasMessageContaining` | an exception's message contains the given text. | `CsvFileRowSourceTest.java`, `SettingsTest.java` |
+| `hasMessageStartingWith` | an exception's message begins with the given text. | `TransactionTest.java` |
+| `hasSize` | a collection has exactly that many elements. | `CsvFileRowSourceTest.java` |
+| `isEmpty` | a collection, text, `Optional` or map has nothing in it. | `SpendingAccumulatorTest.java` |
+| `isEqualByComparingTo` | compares two `BigDecimal` (or other `Comparable`) values by numeric value, so `0.30` equals `0.3`; `isEqualTo` would treat different scales as different. | `SpendingAccumulatorTest.java`, `TransactionTest.java` |
+| `isEqualTo` | the actual value equals the expected one (`equals`). For a record that means all components are equal. | `BuildSpendingReportTest.java`, `CsvFileRowSourceTest.java`, `CsvRowParserEdgeCasesTest.java`, `CsvRowParserTest.java`, `LessonScenarioTest.java` ... |
+| `isFalse` | a boolean is `false`. | `SpendingAccumulatorTest.java` |
+| `isInstanceOf` | the value is an object of the given class (or a subclass). After `assertThatThrownBy` it checks the type of the exception. | `CsvFileRowSourceTest.java`, `CsvRowParserEdgeCasesTest.java`, `SpendingAccumulatorTest.java`, `TransactionTest.java` |
+| `isInstanceOfSatisfying` | the value is of the given class, and the given check (a lambda taking the value as that type) passes. | `CsvFileRowSourceTest.java`, `CsvRowParserTest.java` |
+| `isTrue` | a boolean is `true`. | `SpendingAccumulatorTest.java` |
+| `isZero` | a number is 0. | `SettingsTest.java`, `SpendCliTest.java`, `SpendingAccumulatorTest.java` |
+| `singleElement` | the collection has exactly one element, and the next check applies to it. | `CsvFileRowSourceTest.java` |
+| `startsWith` | a text begins with the given text. | `SpendCliTest.java` |
 
-    assertThat(result)
-        .isInstanceOfSatisfying(
-            ParsedRow.Ok.class,
-            ok -> {
-              assertThat(ok.transaction().amount()).isEqualTo(new BigDecimal("42.17"));
-              assertThat(ok.transaction().category()).isEqualTo("Groceries");
-            });
-  }
-```
-
-`assertThat(actual)` wraps the value and returns an assertion object whose methods depend on the value's type. A `String` gets `startsWith`, `contains`, `isEqualTo`; a collection gets `hasSize`, `containsExactly`; a `Duration` gets `isLessThan`; an `Optional` gets `hasValue`. A failed check throws an `AssertionError` with a message that shows both values.
-
-**Chaining.** Each assertion method returns the assertion object, so conditions chain: `assertThat(text).contains("a").doesNotContain("b")`. **Exceptions** are checked with `assertThatThrownBy`:
-
-```java
-  @Test
-  void aNegativeAmountIsRejectedWithAMessageNamingTheField() {
-    assertThatThrownBy(() -> new Transaction(DAY, "Ride", new BigDecimal("-8.00"), USD, "Travel"))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessage("amount must not be null or negative: -8.00");
-  }
-```
-
-`assertThatThrownBy(() -> code)` runs the lambda, expects it to throw, and gives assertions on the exception (`isInstanceOf`, `hasMessage`, `hasMessageContaining`). If nothing is thrown, the test fails.
-
-Some tests here compare money with `isEqualByComparingTo("0.30")` rather than `isEqualTo`: for `BigDecimal`, `equals` also compares the scale (`0.30` is not equal to `0.3`), while `compareTo` compares the value only.
+Money is compared with `isEqualByComparingTo("0.30")` rather than `isEqualTo`: for `BigDecimal`, `equals` also compares the scale (`0.30` is not equal to `0.3`), while `compareTo` compares the value only.
 
 ## 6. Try it yourself
 

@@ -2,7 +2,7 @@
 
 ## 1. What it is
 
-Unix systems come with many small programs that each do one thing to text: find lines, change them, count them, sort them. They read **standard input**, write **standard output**, and are chained with pipes (`|`). Together they act as a flexible toolbox for turning one program's output into another's input.
+Unix systems come with many small programs that each do one thing to text: find lines, change them, count them, sort them. They read **standard input** (what is fed to them), write **standard output** (what they print), and are chained with pipes (`|`). Together they act as a toolbox for turning one program's output into another's input.
 
 ## 2. Why this repository uses it
 
@@ -10,127 +10,129 @@ The lab and the build targets need to pull one number out of a log or a report a
 
 ## 3. Where it appears
 
-| Tool | Where it first appears |
-| --- | --- |
-| `grep` | `Makefile` |
-| `sed` | `Makefile` |
-| `awk` | `scripts/generate-big-csv.sh` |
-| `sort` | `Makefile` |
-| `tail` | `scripts/prove-quote-test.sh` |
-| `wc` | `scripts/generate-big-csv.sh` |
-| `tr` | `scripts/generate-big-csv.sh` |
-| `rsync` | `scripts/prove-quote-test.sh` |
-| `cmp` | `scripts/prove-quote-test.sh` |
-| `mktemp` | `scripts/prove-quote-test.sh` |
+| Tool | What it does | Where it is used |
+| --- | --- | --- |
+| `grep` | finds lines that match a pattern | `scripts/prove-quote-test.sh`, `Makefile` |
+| `sed` | edits text streams | `scripts/prove-quote-test.sh`, `Makefile` |
+| `awk` | a small programming language for lines and columns | `scripts/generate-big-csv.sh` |
+| `tail` | prints the last lines | `scripts/prove-quote-test.sh` |
+| `tr` | translates or deletes characters | `scripts/generate-big-csv.sh` |
+| `wc` | counts bytes or lines | `scripts/generate-big-csv.sh` |
+| `date` | prints the time (here as seconds since 1970) | `scripts/generate-big-csv.sh` |
+| `mktemp` | creates a uniquely named temporary file or folder | `scripts/prove-quote-test.sh` |
+| `rsync` | copies a tree of files, with exclusions | `scripts/prove-quote-test.sh` |
+| `cmp` | compares two files byte by byte | `scripts/prove-quote-test.sh` |
 
 ## 4. How it works underneath
 
-- Every one of these is a separate program started by the shell as a process; none is part of Java.
-- They are line-oriented: input is split at newlines, and most tools handle one line at a time, so they work on huge inputs with little memory.
-- Patterns are **regular expressions**: a mini-language for text shapes. `.` is any character, `*` zero or more of the previous, `[0-9]` a digit, `^` the start of a line, `$` the end, `\(...\)` a group (basic form) or `(...)` (extended form, with `-E`).
-- macOS ships the BSD versions of these tools; GNU versions on Linux differ in some options. The scripts here use only options that work on both.
+1. Every one of these is a separate program started by the shell as a process; none is part of Java.
+2. They are line-oriented: input is split at line breaks, and most tools handle one line at a time, so they work on huge inputs with little memory.
+3. Patterns are **regular expressions**: a mini-language for text shapes. `.` is any character, `*` zero or more of the previous, `[0-9]` one digit, `^` the start of a line, `$` the end, `\(...\)` a captured group (basic form) or `(...)` (extended form, with `-E`).
+4. macOS ships the BSD versions of these tools; Linux has the GNU versions, which differ in some options. The scripts here use only options that work on both.
 
 ## 5. Walkthrough of this repository's use
 
+Every tool that the Makefile and the scripts use is described below, with the options this repository uses. How each one is used on each line is explained in `bash.md` and `make.md`.
+
 ### `grep`
 
-First use in `Makefile`:
+Used in: `scripts/prove-quote-test.sh`, `Makefile`.
 
-```bash
-@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | sort
-```
+**grep**
 
-Prints the lines of its input that match a pattern. `-E` uses extended regular expressions (`a|b`, `[0-9]+`), `-c` counts matching lines, `-q` prints nothing and only sets the exit status, `-h` hides file names, `-v` inverts. Exit status 1 means "no match".
+> New words:
+>
+> - **grep**: prints the lines of its input that match a pattern. `-E` uses extended regular expressions (`a|b` for alternatives), `-q` prints nothing and only sets the exit status, `-c` prints the number of matching lines, `-h` omits file names, `-v` inverts. Exit status 0 means at least one line matched, 1 means none.
 
 ### `sed`
 
-First use in `Makefile`:
+Used in: `scripts/prove-quote-test.sh`, `Makefile`.
 
-```bash
-@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | sort
-```
+**sed**
 
-A stream editor: reads lines, applies edits, prints the result. `s/old/new/` substitutes; `-n` with the `p` command prints only chosen lines; `-E` extended regular expressions; `-i.bak` edits a file in place and keeps a backup (the form that works on both macOS and Linux).
+> New words:
+>
+> - **sed**: "stream editor": applies edits to each line of its input. `sed -n 's/PATTERN/REPLACEMENT/p'` means: do not print lines by default (`-n`), substitute the first match of the pattern by the replacement in each line (`s/.../.../`), and print the line if a substitution happened (`p`). Parentheses `\(...\)` capture text and `\1` pastes it in the replacement. `sed -n 2p` prints only line 2. `sed -E` uses extended patterns (plain parentheses).
 
 ### `awk`
 
-First use in `scripts/generate-big-csv.sh`:
+Used in: `scripts/generate-big-csv.sh`.
 
-```bash
-awk -v rows="$rows" 'BEGIN {
-```
+**awk**
 
-A tiny language for columns of text. A program is `pattern { action }`; `$1`, `$2` are the first and second columns, `$0` the whole line, `-v name=value` sets a variable, `BEGIN { }` runs before input. `printf` formats.
-
-### `sort`
-
-First use in `Makefile`:
-
-```bash
-@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/:.*## /\t/' | sort
-```
-
-Sorts lines. `-n` sorts as numbers, `-rn` numbers in reverse.
+> New words:
+>
+> - **awk**: a small programming language for text, one line at a time. A program is a list of `pattern { action }` pairs. Each input line is split into fields `$1`, `$2`, ... at white space; `$0` is the whole line, `NF` the number of fields. `-v name=value` sets a variable before it runs. A `BEGIN { ... }` block runs once, before any input. `print` writes its arguments; `printf format, args` writes with a format; `getline` reads the next line into `$0`.
 
 ### `tail`
 
-First use in `scripts/prove-quote-test.sh`:
+Used in: `scripts/prove-quote-test.sh`.
 
-```bash
-failed="$(grep -E 'Tests run:.*Failures' out.log | tail -1)"
-```
+**head and tail**
 
-Prints the last lines (`-6`, `-1`).
-
-### `wc`
-
-First use in `scripts/generate-big-csv.sh`:
-
-```bash
-echo "wrote $rows rows to $output ($(wc -c < "$output" | tr -d ' ') bytes)" >&2
-```
-
-Counts lines, words or bytes (`-c` bytes, `-l` lines).
+> New words:
+>
+> - **head and tail**: `head -5` prints the first 5 lines; `tail -6` the last 6; `head -1` the first line.
 
 ### `tr`
 
-First use in `scripts/generate-big-csv.sh`:
+Used in: `scripts/generate-big-csv.sh`.
 
-```bash
-echo "wrote $rows rows to $output ($(wc -c < "$output" | tr -d ' ') bytes)" >&2
-```
+**tr**
 
-Translates or deletes characters (`tr -d ' '` deletes spaces).
+> New words:
+>
+> - **tr**: translates or deletes characters: `tr -d ' '` deletes every space; `tr -d '[:space:]'` deletes all white space.
 
-### `rsync`
+### `wc`
 
-First use in `scripts/prove-quote-test.sh`:
+Used in: `scripts/generate-big-csv.sh`.
 
-```bash
-rsync -a --exclude target --exclude .git "$root"/ "$work"/
-```
+**wc**
 
-Copies folders efficiently. `-a` archive mode (keeps permissions and times), `--exclude` skips paths.
+> New words:
+>
+> - **wc**: counts: `wc -c` the bytes, `wc -l` the lines. `wc -c < file` reads from the file so no file name is printed.
 
-### `cmp`
+### `date`
 
-First use in `scripts/prove-quote-test.sh`:
+Used in: `scripts/generate-big-csv.sh`.
 
-```bash
-cmp -s "$splitter" "$splitter.bak" && { echo "mutation did not apply" >&2; exit 1; }
-```
+**date**
 
-Compares two files byte by byte; `-s` is silent and only sets the exit status (0 if equal).
+> New words:
+>
+> - **date**: prints the date and time; `date +%s` prints the number of seconds since 1 January 1970, handy for measuring how long something took.
 
 ### `mktemp`
 
-First use in `scripts/prove-quote-test.sh`:
+Used in: `scripts/prove-quote-test.sh`.
 
-```bash
-work="$(mktemp -d)"
-```
+**mktemp**
 
-Creates a new unique temporary file or (`-d`) folder and prints its path.
+> New words:
+>
+> - **mktemp**: creates a new empty file (or, with `-d`, folder) with a unique name in the temporary area and prints its name.
+
+### `rsync`
+
+Used in: `scripts/prove-quote-test.sh`.
+
+**rsync**
+
+> New words:
+>
+> - **rsync**: copies files; `rsync -a --exclude target --exclude .git SRC/ DEST/` copies a whole tree, preserving permissions, leaving out the named folders.
+
+### `cmp`
+
+Used in: `scripts/prove-quote-test.sh`.
+
+**cmp**
+
+> New words:
+>
+> - **cmp**: compares two files byte by byte; `cmp -s` prints nothing and only sets the exit status (0 if identical).
 
 ## 6. Try it yourself
 
@@ -138,7 +140,7 @@ Creates a new unique temporary file or (`-d`) folder and prints its path.
 - `echo 'cache=1476' | sed -n 's/.*cache=\([0-9]*\).*/\1/p'`. Expected: `1476`.
 - `printf 'a 1\nb 2\n' | awk '{print $2, $1}'`. Expected: `1 a` and `2 b`.
 - `make help`. Expected: the target list, produced by `grep`, `sed` and `sort`.
-- `grep -c 'Tests run' target/surefire-reports/*.txt | head -3`. Expected: file names with counts.
+- `printf 'one\ntwo\n' | tee /tmp/two.txt | wc -l`. Expected: `2`, and the file `/tmp/two.txt` holds both lines.
 
 ## 7. Mistakes people make
 

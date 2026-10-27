@@ -42,22 +42,22 @@ Read the language first, then the build, then the runtime pieces, then the tests
 
 ### The commands and the packaging
 
-- [`bash.md`](bash.md): the scripts under scripts/ and the mvnw wrapper.
+- [`bash.md`](bash.md): the scripts under scripts/ (and the shell lines inside the Makefile).
 - [`unix-text-tools.md`](unix-text-tools.md): the small programs that the Makefile and scripts chain together.
 - [`make.md`](make.md): the Makefile: one short command per job.
-- [`dockerfile.md`](dockerfile.md): the recipe for the container image.
-- [`docker.md`](docker.md): containers for the image build, the dependency scan.
-- [`github-actions.md`](github-actions.md): runs format, lint, tests and the dependency audit on every push.
+- [`dockerfile.md`](dockerfile.md): how the container image is built and what it runs.
+- [`docker.md`](docker.md): the commands that build, run and compose the containers.
+- [`github-actions.md`](github-actions.md): the CI workflow: format, lint, tests, audit and the container job.
 - [`osv-scanner.md`](osv-scanner.md): the dependency audit: known-vulnerability scan of the pinned libraries.
 
 ### The files around the code
 
-- [`git.md`](git.md): version control: what is tracked, and how the history is written.
-- [`editorconfig.md`](editorconfig.md): tells editors the encoding, line endings and indentation.
-- [`env-file.md`](env-file.md): documents every setting and its default; read by Make and Docker Compose.
-- [`xml.md`](xml.md): the format of pom.xml, config/checkstyle.xml and logback.xml.
-- [`yaml.md`](yaml.md): the format of the GitHub Actions workflow.
-- [`markdown-and-mermaid.md`](markdown-and-mermaid.md): the format of README.md, ARCHITECTURE.md, the decision records and the diagram.
+- [`git.md`](git.md): the version history and the .gitignore.
+- [`editorconfig.md`](editorconfig.md): .editorconfig: the same basic file rules in every editor.
+- [`env-file.md`](env-file.md): the list of every setting, with harmless defaults.
+- [`xml.md`](xml.md): the format of pom.xml, checkstyle.xml and the logback files.
+- [`yaml.md`](yaml.md): the format of the CI workflow.
+- [`markdown-and-mermaid.md`](markdown-and-mermaid.md): README, ARCHITECTURE, ADRs, CHANGELOG and the diagram.
 
 ## How to use the notes
 

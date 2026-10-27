@@ -2,31 +2,35 @@
 
 ## 1. What it is
 
-EditorConfig is a tiny file format, `.editorconfig`, that tells code editors how to treat the files of a folder: character encoding, line endings, indentation, trailing whitespace. Most editors read it (some through a plugin).
+People edit the same files in different editors (IntelliJ, VS Code, vim). Each has its own idea of how big an indent is and how a line ends, and small differences create noisy changes in the history. **EditorConfig** is a tiny standard: you put a file named `.editorconfig` in the project, and any editor that supports it (most do, some through a plugin) reads it and follows the rules.
 
 ## 2. Why this repository uses it
 
-Different people use different editors. One shared file keeps indentation (2 spaces), line endings (`\n`) and the final newline the same for everyone, so diffs stay small. The formatter (Spotless) enforces the same layout for Java files.
+The repository wants Unix line endings, UTF-8, a final newline and two-space indents everywhere, and real tabs in the Makefile. The formatter and the Checkstyle rules enforce the Java part; EditorConfig makes the editor produce the right bytes for every other file type before any tool complains.
 
 ## 3. Where it appears
 
 | File | What it does with the technology |
 | --- | --- |
-| `.editorconfig` | the settings |
+| `.editorconfig` | the rules, walked through below |
+| `config/checkstyle.xml` | rejects tabs and trailing spaces in Java files |
+| `Makefile` | needs the tab setting |
 
 ## 4. How it works underneath
 
-- The editor looks for `.editorconfig` in the file's folder and in each parent folder, up to one that says `root = true`.
-- Sections in `[...]` choose files by glob pattern; for each key the last matching section wins.
-- The file affects what the editor writes from now on; it does not rewrite existing files.
+1. The editor looks for `.editorconfig` in the folder of the file being edited and in each parent folder, up to one that says `root = true`.
+2. Sections are matched against the file name with glob patterns (`*` any text, `{a,b}` alternatives); later sections override earlier ones.
+3. Settings are applied when the file is saved or typed (indentation); EditorConfig never rewrites other files by itself.
 
 ## 5. Walkthrough of this repository's use
 
-```
+```ini
 root = true
 ```
 
-```
+`root = true` says this is the top-level EditorConfig file: editors should stop looking in parent folders. A line `[pattern]` opens a **section** that applies to the files matching it; the lines below it are settings.
+
+```ini
 [*]
 charset = utf-8
 end_of_line = lf
@@ -36,48 +40,56 @@ indent_style = space
 indent_size = 2
 ```
 
-`root = true` stops the search here. `[*]` matches every file: `charset = utf-8`; `end_of_line = lf` (the Unix line ending, a single newline character); `insert_final_newline = true` (a file ends with a newline); `trim_trailing_whitespace = true` (remove spaces at the end of lines); `indent_style = space` and `indent_size = 2`.
+The section `[*]` applies to every file. `charset = utf-8` files are UTF-8 text. `end_of_line = lf` lines end with the Unix line break (not the Windows `crlf`). `insert_final_newline = true` every file ends with a line break. `trim_trailing_whitespace = true` spaces at the end of a line are removed on saving. `indent_style = space` indent with spaces, not tabs. `indent_size = 2` an indent is two spaces. These match what google-java-format produces, so an editor does not fight the formatter.
 
+```ini
+[*.{xml,yml,yaml,json,md}]
+indent_size = 2
 ```
+
+The braces list several extensions: the same two-space indent for XML, YAML, JSON and Markdown files (a repeat of the default, kept explicit so the rule survives if the default changes).
+
+```ini
 [Makefile]
 indent_style = tab
 ```
 
-Make **requires** a tab at the start of every recipe line, so the Makefile overrides the space rule.
+A Makefile needs real TAB characters at the start of recipe lines, so this section overrides the default: `indent_style = tab`.
 
-```
+```ini
 [*.md]
 trim_trailing_whitespace = false
 ```
 
-In Markdown, two spaces at the end of a line can mean a line break, so trimming is switched off there.
+In Markdown two trailing spaces mean a forced line break, so trimming trailing whitespace is switched off for `.md` files.
 
 ## 6. Try it yourself
 
-- `cat .editorconfig`. Expected: the settings above.
-- Open a Java file in an editor with EditorConfig support and press Tab. Expected: two spaces are inserted.
-- `grep -rln $'\t' src/main/java | head -3`. Expected: no output (no tab characters in Java files).
+- `cat .editorconfig`. Expected: the file shown above.
+- Open a Java file in an editor with EditorConfig support, press Tab. Expected: two spaces.
+- `grep -c $'\t' src/main/java/**/*.java 2>/dev/null | head -3` (or `grep -rlP '\t' src/main/java`). Expected: no files listed (no tabs in Java files).
 
 ## 7. Mistakes people make
 
-- Expecting the file to fix existing files. It guides new edits; `make format` fixes Java layout.
-- Replacing the tab in a Makefile recipe with spaces: `*** missing separator`.
-- Forgetting `root = true` and inheriting settings from a parent folder.
+- Relying on EditorConfig alone: it only guides editors; the CI formatter is the real gate.
+- Editors without support ignore the file.
+- Forgetting the Makefile section: an editor that converts tabs to spaces breaks the Makefile (`*** missing separator`).
+- Trimming trailing spaces in Markdown: two trailing spaces mean a line break there, which is why `*.md` is excepted.
 
 ## 8. Check yourself
 
 1. What does `root = true` do?
-   **Answer:** It stops the editor from reading `.editorconfig` files in parent folders.
-2. Why does `[Makefile]` use tabs?
-   **Answer:** Make requires a tab at the start of recipe lines.
-3. Does EditorConfig reformat existing code?
-   **Answer:** No. It only guides what the editor writes.
-4. Which line ending is set?
-   **Answer:** `lf`, a single newline.
-5. Why is trailing-space trimming off for Markdown?
-   **Answer:** Two trailing spaces can mean a line break there.
+   **Answer:** Stops the editor from looking for more `.editorconfig` files in parent folders.
+2. Why is `indent_style = tab` set for the Makefile?
+   **Answer:** Make recipe lines must start with a tab character.
+3. What does `end_of_line = lf` mean?
+   **Answer:** Lines end with the Unix line break, not the Windows pair.
+4. Why is trailing-whitespace trimming off for `*.md`?
+   **Answer:** Two trailing spaces are a hard line break in Markdown.
+5. Does EditorConfig format code?
+   **Answer:** No. It only sets basic editor behavior; the formatter does the rest.
 
 ## 9. Further reading
 
-- EditorConfig specification: https://spec.editorconfig.org/
-- Supported editors and plugins: https://editorconfig.org/
+- EditorConfig: https://editorconfig.org/
+- Supported properties: https://spec.editorconfig.org/

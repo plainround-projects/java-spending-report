@@ -1,79 +1,71 @@
-# Docker (Engine 24)
+# Docker (Engine 24 / Desktop)
 
 ## 1. What it is
 
-Docker runs programs in **containers**: isolated processes that see their own file system, their own network and a limited share of memory and CPU, while using the host's operating-system kernel. A container starts from an **image**, a read-only bundle of files. Docker Desktop on a Mac runs a small Linux virtual machine and starts the containers inside it.
+**Docker** is the program that builds images and runs containers (see `dockerfile.md` for what those are). The `docker` command talks to a background service, the Docker **engine**. `docker build` makes an image; `docker run` starts a container from it; `docker compose` starts several at once from a file. Containers are isolated from each other and from the host computer; you choose what they share.
 
 ## 2. Why this repository uses it
 
-Containers give the same Java 25 runtime, the same user and the same files everywhere, and they allow limits (read-only file system, no capabilities, memory cap). Here Docker also runs a tool the host does not need to install (the OSV scanner).
+Docker gives every reader the same environment for the demo servers and the service, and the same tool to run the vulnerability scanner without installing it. The Makefile is the only place where the long `docker` commands are written.
 
 ## 3. Where it appears
 
 | File | What it does with the technology |
 | --- | --- |
-| `Dockerfile` | how the image is built (see `dockerfile.md`) |
-| `.dockerignore` | what is left out of the build context |
-| `Makefile` | `audit`, `docker-build`, `docker-run` |
-| `.github/workflows/ci.yml` | the CI jobs that call these targets |
+| `Makefile` | every `docker` command line, listed below |
+| `Dockerfile` | what `docker build` builds |
+| `.github/workflows/ci.yml` | jobs that call the Makefile targets that use Docker |
 
 ## 4. How it works underneath
 
-- The `docker` command is a client. It talks to the Docker daemon (a background service) over a socket. The daemon pulls images from registries (Docker Hub, `ghcr.io`), builds images, and starts containers.
-- A container is **not** a virtual machine: it is a normal Linux process with namespaces (its own view of processes, network, files) and cgroups (resource limits).
-- Files written inside a container disappear when it is removed (`--rm`) unless a folder is **mounted** from the host (`-v`) or is a volume.
-- Ports: a container has its own network. `-p host:container` (or compose `ports:`) forwards a host port to a container port. Publishing on `127.0.0.1` keeps it reachable only from the same machine.
-- On a Mac the first `docker build` is slower: the VM has to download images and packages, and it shares the machine's CPU with everything else.
+1. `docker` is only a client. It sends your request to the engine over a local socket. On macOS the engine runs inside a Linux virtual machine managed by Docker Desktop.
+2. An **image** is a read-only stack of layers; a **container** is a running copy with a thin writable layer on top. When the container is removed, that layer is gone, which is why anything that must survive is put in a mounted folder (a *volume*).
+3. Containers are separated by Linux features: their own process list, their own network, their own file system view, limits on memory and processes.
+4. Ports: a container has its own network; to reach it from the host a port is *published* (see `docker-compose.md`).
+5. Everything here needs the Docker engine running; if it is not, `docker` reports `Cannot connect to the Docker daemon`.
 
 ## 5. Walkthrough of this repository's use
 
-```make
-audit: ## known-vulnerability scan of the dependencies with OSV-Scanner (needs Docker)
-	docker run --rm -v "$(CURDIR)":/src -w /src ghcr.io/google/osv-scanner:v2.7.0 scan source --recursive /src
-```
+### Every `docker` command in the Makefile
 
-`docker run --rm -v "$(CURDIR)":/src -w /src ghcr.io/google/osv-scanner:v2.7.0 scan source --recursive /src`: `run` starts a container from an image; `--rm` deletes it when it ends; `-v host:container` **mounts** a host folder inside the container (here the project, at `/src`); `-w /src` sets the working folder; the image is named with a registry (`ghcr.io`, GitHub's), a path and a tag; everything after the image name is the command for the program inside (`scan source --recursive /src`). See `osv-scanner.md`.
+| Command | What it does |
+| --- | --- |
+| `docker build -t $(IMAGE) .` | `docker build` creates an image from a Dockerfile; `-t NAME:TAG` names ("tags") it; the final `.` is the build context. |
+| `docker run --rm -v "$(CURDIR)/sample":/data:ro $(IMAGE) /data/transactions.csv` | `docker run IMAGE ARGS` creates a container from an image and runs it; `--rm` deletes the container when it ends; `-v HOST:CONTAINER:ro` mounts a host folder inside, read-only; the words after the image name are the program's arguments. |
+| `docker run --rm -v "$(CURDIR)":/src -w /src ghcr.io/google/osv-scanner:v2.7.0` | The vulnerability scan: `-w /src` sets the working folder inside the container; the image is OSV-Scanner pinned to a version, from GitHub's registry `ghcr.io`. |
 
-```make
-docker-build: ## build the multi-stage image
-	docker build -t $(IMAGE) .
-
-docker-run: docker-build ## run the image on the sample file
-	docker run --rm -v "$(CURDIR)/sample":/data:ro $(IMAGE) /data/transactions.csv; test $$? -eq 2
-```
-
-`docker build -t plainround/spend:0.1.0 .` builds the image from the `Dockerfile` in the current folder (`.` is the build context) and names it. `docker run --rm -v "$(CURDIR)/sample":/data:ro IMAGE /data/transactions.csv` runs the report in a container: `:ro` mounts the sample folder read-only, and the path after the image is passed to the program as its argument. The program exits 2 (rows rejected), so the recipe ends with `test $$? -eq 2`.
+The options `-t`, `-v`, `-w`, `--rm`, `-d` and the rest are explained in the rows above. The files these commands use are walked through in `dockerfile.md` and `docker-compose.md`.
 
 ## 6. Try it yourself
 
-- `docker version`. Expected: Client and Server sections, version 24 or newer.
-- `docker run --rm hello-world`. Expected: a short message `Hello from Docker!`.
-- `docker images | head`. Expected: the images on your machine (after a build, one named `plainround/spend`).
-- `make audit`. Expected: `No issues found`.
+- `docker version`. Expected: client and server version lines (the server line needs the engine to be running).
+- `docker images | head`. Expected: a table of images, including the ones you built.
+- `docker ps`. Expected: running containers (none, or the demo/service after `make up`).
+- `docker run --rm hello-world`. Expected: a message beginning `Hello from Docker!` (needs network access to Docker Hub the first time).
 
 ## 7. Mistakes people make
 
-- Assuming the daemon is running. `Cannot connect to the Docker daemon` means Docker Desktop is not started.
-- Putting secrets in an image or a Dockerfile; they stay in the layers. This repository has none (see `.env.example`).
-- Mounting the project folder read-write when read-only is enough (`:ro`).
-- Running as root. The image defines a non-root user.
-- Forgetting `--rm` and collecting stopped containers.
+- Forgetting `--rm`: stopped containers pile up.
+- Writing files inside a container and expecting them on the host: use a mounted folder.
+- Publishing a port on all interfaces (`-p 8080:8080`) when only the same machine should reach it; here `127.0.0.1:` is written in front.
+- Assuming the image is up to date: `docker compose up --build` rebuilds, a plain `up` may reuse an old image.
+- Running as root inside the container; the image uses a non-root user.
 
 ## 8. Check yourself
 
 1. What is the difference between an image and a container?
-   **Answer:** An image is the read-only template; a container is a running (or stopped) instance of it.
-2. What does `-v "$(CURDIR)":/src` do?
-   **Answer:** It mounts the current folder into the container at `/src`.
-3. Is a container a virtual machine?
-   **Answer:** No. It is an isolated process sharing the host kernel.
-4. What does `--rm` do?
-   **Answer:** Deletes the container when it exits.
-5. Where does `docker run ghcr.io/google/osv-scanner:v2.7.0` get the image the first time?
-   **Answer:** It pulls it from the GitHub Container Registry.
+   **Answer:** An image is the sealed package; a container is a running instance of it.
+2. What does `--rm` do?
+   **Answer:** Deletes the container when it ends.
+3. What does `-v HOST:CONTAINER:ro` do?
+   **Answer:** Shares a host folder with the container, read-only.
+4. What does `docker compose up -d --wait` do?
+   **Answer:** Starts the services in the background and waits until their health checks pass.
+5. Where does the engine run on a Mac?
+   **Answer:** In a small Linux virtual machine managed by Docker Desktop.
 
 ## 9. Further reading
 
-- Docker Engine 24 documentation: https://docs.docker.com/engine/
-- CLI reference: https://docs.docker.com/reference/cli/docker/
-- Bind mounts: https://docs.docker.com/engine/storage/bind-mounts/
+- Docker overview: https://docs.docker.com/get-started/docker-overview/
+- docker run reference: https://docs.docker.com/reference/cli/docker/container/run/
+- Compose CLI reference: https://docs.docker.com/reference/cli/docker/compose/

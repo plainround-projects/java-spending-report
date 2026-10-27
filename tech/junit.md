@@ -2,7 +2,7 @@
 
 ## 1. What it is
 
-JUnit is the standard test framework for Java. A **test** is a method that runs a small piece of your code and fails if the result is wrong. JUnit finds the tests, runs them one by one, and reports passes and failures. "Jupiter" is the name of the programming model (annotations such as `@Test`) in JUnit 5 and 6.
+A **test** is a small program that runs a piece of your code and fails if the result is not what it should be. Running them all by hand would be tedious, so a **test framework** finds the tests, runs them one by one, and prints a report of passes and failures. **JUnit** is the standard test framework for Java. "Jupiter" is the name of its programming model: you mark ordinary methods with **annotations** (labels written with `@`, such as `@Test`) and JUnit does the rest.
 
 ## 2. Why this repository uses it
 
@@ -19,68 +19,42 @@ The lesson asks for tests that read as behavior and for a build that fails when 
 
 ## 4. How it works underneath
 
-- Maven's Surefire plugin starts a new JVM, puts the compiled classes, the test classes and the test libraries on its class path, and asks the JUnit **platform** to run.
-- The platform looks for test **engines** on the class path. The Jupiter engine scans the classes for `@Test` and friends.
-- For each test method the engine creates a **new instance of the test class** (so tests cannot leak state into each other through fields), runs the `@BeforeEach` methods, the test, then the `@AfterEach` methods.
-- Results go to the console and to `target/surefire-reports/`.
+1. **Discovery.** Maven's Surefire plugin starts a new JVM, puts the compiled classes, the test classes and the test libraries on its class path, and asks the JUnit **platform** to run. The platform looks for test **engines** on the class path; the Jupiter engine scans the classes for methods with the annotations listed below. Surefire only considers classes whose names match its patterns (such as `*Test`).
+2. **One new object per test.** For each test method the engine creates a new instance of the test class. A field that a test changes therefore starts fresh in the next test; tests cannot leak state into each other through fields.
+3. **Order of events for one test:** create the object, run the `@BeforeEach` methods, run the test method, run the `@AfterEach` methods. `@BeforeAll` and `@AfterAll` bracket the whole class and must be `static`.
+4. **Outcome.** A test that returns normally passes. An assertion that fails throws `AssertionError`; any other exception is an error. Both are reported with the test's name. A test is not `public`: JUnit 5 and later do not need it.
+5. **Reports** go to the console and to `target/surefire-reports/` (a `.txt` and a `.xml` file per class).
+6. **The dependency `junit-jupiter`** is an aggregator: one line in the pom that brings in the API for writing tests (`junit-jupiter-api`), the parameterized-test support (`junit-jupiter-params`) and the engine that runs them (`junit-jupiter-engine`). JUnit 6 needs Java 17 or newer; this repository runs on 25.
 
 ## 5. Walkthrough of this repository's use
 
-Every test class in this repository is plain Java in `src/test/java`, in the same package as the code it tests. Surefire (see `maven.md`) finds classes whose names end in `Test` and runs every method marked `@Test`. Here is one test, then the other things JUnit gives us.
+### Every JUnit and ArchUnit annotation used in this repository
 
-```java
-  @Test
-  void aQuotedAmountWithAThousandsCommaStaysOneField() {
-    ParsedRow result = parser.parse(4, "2026-01-05,Rail Pass,\"1,204.50\",USD,Travel");
+| Annotation | Full name | What it does | Used in |
+| --- | --- | --- | --- |
+| `@Test` | `org.junit.jupiter.api.Test` | marks a method as a test. JUnit runs it; if it returns normally the test passes, if it throws (an assertion error or any exception) the test fails. | `BuildSpendingReportTest.java`, `CsvFileRowSourceTest.java`, `CsvRowParserEdgeCasesTest.java`, `CsvRowParserTest.java`, `LessonScenarioTest.java`, `SettingsTest.java` ... |
+| `@ParameterizedTest` | `org.junit.jupiter.params.ParameterizedTest` | marks a method as a test that is run many times, once per set of arguments supplied by a source annotation. It replaces `@Test` on that method. | `CsvRowParserEdgeCasesTest.java` |
+| `@CsvSource` | `org.junit.jupiter.params.provider.CsvSource` | supplies the arguments as rows of comma-separated text. Here `delimiter = '|'` changes the separator to a pipe (the test inputs themselves contain commas) and `value = {...}` lists the rows. Each row's pieces are converted to the method's parameter types (here both `String`). | `CsvRowParserEdgeCasesTest.java` |
+| `@TempDir` | `org.junit.jupiter.api.io.TempDir` | on a field (or parameter) of type `Path` makes JUnit create a fresh temporary folder for each test and delete it afterwards. | `CsvFileRowSourceTest.java`, `SpendCliTest.java` |
+| `@AnalyzeClasses` | `com.tngtech.archunit.junit.AnalyzeClasses` | ArchUnit's class-level annotation: says which packages of compiled classes the architecture rules examine, and with which import options. | `ArchitectureTest.java` |
+| `@ArchTest` | `com.tngtech.archunit.junit.ArchTest` | marks a field of type `ArchRule` as a test: ArchUnit's JUnit integration runs each such rule against the analyzed classes. | `ArchitectureTest.java` |
 
-    assertThat(result)
-        .isInstanceOfSatisfying(
-            ParsedRow.Ok.class,
-            ok -> assertThat(ok.transaction().amount()).isEqualTo(new BigDecimal("1204.50")));
-  }
-```
+### Every test file
 
-`@Test` marks a test method. The method name is a sentence that says the behavior (the house style). A test passes if the method returns without throwing; a failed assertion throws an `AssertionError`. The class and its methods are not `public`: JUnit 5 and later do not need it.
+| Test file | Tests in it |
+| --- | --- |
+| `src/test/java/com/plainround/spend/ArchitectureTest.java` | 3 `@ArchTest` rules |
+| `src/test/java/com/plainround/spend/application/BuildSpendingReportTest.java` | 1 `@Test` |
+| `src/test/java/com/plainround/spend/domain/SpendingAccumulatorTest.java` | 8 `@Test` |
+| `src/test/java/com/plainround/spend/domain/TransactionTest.java` | 7 `@Test` |
+| `src/test/java/com/plainround/spend/infrastructure/SettingsTest.java` | 4 `@Test` |
+| `src/test/java/com/plainround/spend/infrastructure/csv/CsvFileRowSourceTest.java` | 5 `@Test` |
+| `src/test/java/com/plainround/spend/infrastructure/csv/CsvRowParserEdgeCasesTest.java` | 5 `@Test`, 1 `@ParameterizedTest` |
+| `src/test/java/com/plainround/spend/infrastructure/csv/CsvRowParserTest.java` | 5 `@Test` |
+| `src/test/java/com/plainround/spend/interfaces/cli/LessonScenarioTest.java` | 2 `@Test` |
+| `src/test/java/com/plainround/spend/interfaces/cli/SpendCliTest.java` | 10 `@Test` |
 
-**Parameterized tests** run the same method with many inputs:
-
-```java
-  @ParameterizedTest
-  @CsvSource(
-      delimiter = '|',
-      value = {
-        "2026-01-11,Ride Share,-8.00,USD,Travel|amount must not be null or negative: -8.00",
-        "2026-01-14,Streaming Plan,15.99,USD,|category must not be blank",
-        "2026-01-18,Hardware Store,sixty,USD,Home|amount is not a number: 'sixty'",
-        "2026-02-05,Rail Pass,1,204.50,USD,Travel|expected 5 columns, found 6",
-        "2026-13-10,Pharmacy,16.15,USD,Health|date must look like 2026-01-31, got '2026-13-10'",
-        "2026-02-25,Storage Unit,45.00,US$,Home|unknown currency code 'US$'",
-        "2026-02-27,Corner Grocer,,USD,Groceries|amount is not a number: ''",
-      })
-  void everyPlantedBadRowOfTheLessonGetsAnActionableReason(String line, String reason) {
-    assertThat(reasonFor(line)).isEqualTo(reason);
-  }
-```
-
-`@ParameterizedTest` replaces `@Test`. A **source** annotation (`@CsvSource`, `@ValueSource`) supplies the arguments, and JUnit calls the method once per row, converting the text to the parameter types. Each call is reported as its own test, so one bad row shows which input failed.
-
-**Set-up and clean-up.** `@TempDir` asks JUnit for a fresh empty folder before each test and deletes it afterwards. The test below writes its input file there, so tests never touch real files and never leave anything behind.
-
-```java
-  @TempDir Path folder;
-```
-
-```java
-  @Test
-  void aMissingFileIsReportedAsAnUnreadableInputNotAStackTrace() {
-    assertThatThrownBy(() -> read(folder.resolve("nope.csv")))
-        .isInstanceOf(InputUnreadableException.class)
-        .hasMessageContaining("cannot read")
-        .hasMessageContaining("NoSuchFileException");
-  }
-```
-
-The `junit-jupiter` dependency in the pom (scope `test`) is an **aggregator**: one line that brings in the API for writing tests (`junit-jupiter-api`), the parameterized-test support (`junit-jupiter-params`) and the engine that runs them (`junit-jupiter-engine`). JUnit 6 needs Java 17 or newer; this repository runs on 25.
+Every test method of every file is explained, line by line, in `java.md` (Part B of its walkthrough). The way JUnit runs a **parameterized** test deserves a sentence: `@ParameterizedTest` plus a source annotation makes one method behave like many tests; each row is reported as its own test, so one bad row shows which input failed.
 
 ## 6. Try it yourself
 
@@ -93,7 +67,7 @@ The `junit-jupiter` dependency in the pom (scope `test`) is an **aggregator**: o
 
 - Test methods that depend on each other or on order. Each test here builds its own data.
 - Sharing a mutable field between tests. JUnit makes a new instance per test, and the tests here also avoid static mutable state.
-- Sleeping to wait for something. Where timing matters, tests here wait on a condition or use generous limits, never a fixed sleep as the only check.
+- Sleeping to wait for something. Where timing matters, tests here wait on a condition (a latch, a future with a timeout) or use generous limits, never a fixed sleep as the only check.
 - Writing a test with no assertion. A test that cannot fail proves nothing.
 
 ## 8. Check yourself
@@ -102,8 +76,8 @@ The `junit-jupiter` dependency in the pom (scope `test`) is an **aggregator**: o
    **Answer:** Methods marked `@Test` (or `@ParameterizedTest`) in classes found on the test class path.
 2. What does a new instance per test mean for fields?
    **Answer:** Every test starts with fresh field values, so tests cannot affect each other through fields.
-3. What is `@TempDir` / `@BeforeEach` for (see the walkthrough)?
-   **Answer:** `@TempDir` gives a fresh temporary folder that is deleted after the test; `@BeforeEach` runs set-up code before every test.
+3. What is `@TempDir` for?
+   **Answer:** It gives a fresh temporary folder that is deleted after the test.
 4. How is a parameterized test different?
    **Answer:** One method runs many times, once per row from a source annotation such as `@CsvSource`, and each row is reported separately.
 5. What does `junit-jupiter` bring in?

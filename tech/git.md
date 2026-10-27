@@ -1,33 +1,45 @@
-# Git (ignore files, commits, fresh clone)
+# Git (repository, .gitignore)
 
 ## 1. What it is
 
-Git records the history of a folder as a series of **commits**, each a snapshot with a message. A **repository** is the folder plus that history (in the hidden `.git` folder). You choose what goes in each commit with `git add`, and what is never tracked with a `.gitignore` file.
+**Git** is a program that keeps the history of a folder of files. Every time you save a snapshot (a **commit**), git records exactly what changed, who changed it, when, and a message saying why. You can look at any earlier snapshot, compare two, or go back. The history lives in a hidden folder called `.git`; everything else in the folder is the **working tree**, the files you see. A folder tracked this way is a **repository**.
 
 ## 2. Why this repository uses it
 
-Each project folder here is its own Git repository, ready to be pushed to GitHub later. The history is part of the deliverable: small commits with clear messages that follow the order of the layers.
+The repository promises meaningful commits and a clean tree (no uncommitted changes). Git also keeps the executable bit of `mvnw` and the scripts, so they run after a fresh clone.
 
 ## 3. Where it appears
 
 | File | What it does with the technology |
 | --- | --- |
-| `.gitignore` | patterns of files Git ignores |
-| `.dockerignore` | the same idea for the Docker build context |
-| `.git/` | the history (not a file you edit) |
-| `CHANGELOG.md` | the release notes in Keep a Changelog format |
+| `.git/` | the history (not part of the project files) |
+| `.gitignore` | files that git must never track, walked through below |
+| `CHANGELOG.md` | the human-readable summary of what the commits add |
+| `mvnw`, `scripts/*.sh` | stored with the executable bit |
 
 ## 4. How it works underneath
 
-- A commit stores the content of the tracked files at that moment, a pointer to its parent commit, an author, a time and the message. The history is a chain of such commits.
-- `git add` puts changes in the **staging area**; `git commit` turns the staged changes into a commit.
-- Files matching `.gitignore` are not listed by `git status` and are skipped by `git add .`; a file that is already tracked stays tracked even if it is later ignored.
-- `git status --short` prints one line per changed or untracked file; empty output means a clean working tree.
+1. **A commit** is a snapshot of every tracked file plus a message and a pointer to the previous commit. Commits form a chain: the *history*.
+2. **Staging.** `git add file` marks a change to go into the next commit; `git commit -m "message"` saves the snapshot.
+3. **Ignoring.** Git tracks only files you add, but it also *warns* about every untracked file in `git status`. `.gitignore` removes build output and local files from that list and prevents `git add .` from picking them up.
+4. **Cloning.** `git clone <address> dir` copies the whole history to a new folder. A fresh clone contains only tracked files, which is the test of whether the repository is complete: `make test` must work in a fresh clone.
+5. **Not tracked here:** `target/`, `.env`, editor folders, logs. Tracked: sources, the wrapper, configuration, documents, evidence the labs wrote.
 
 ## 5. Walkthrough of this repository's use
 
-```
+### `.gitignore`, line by line
+
+```gitignore
 # Build output and local state
+```
+
+A **comment (#)**-style comment line (`#`): the first group is build output and local state.
+
+> New words:
+>
+> - **comment (#)**: a line (or the end of a line) starting with `#` is ignored by the shell; it is a note for the reader. The first line `#!...` is the only `#` line that has a meaning.
+
+```gitignore
 target/
 .idea/
 *.iml
@@ -36,61 +48,64 @@ target/
 *.log
 logs/
 dependency-reduced-pom.xml
+```
+
+`target/` is Maven's output folder (compiled classes, test reports, the jar). The trailing slash means a folder. `.idea/` and `*.iml` are IntelliJ's project folder and files; `.vscode/` is Visual Studio Code's; `.DS_Store` is a hidden file that the macOS Finder creates in folders; `*.log` is any log file; `logs/` a folder of logs; `dependency-reduced-pom.xml` is a file the Shade plugin could write (see `maven-shade.md`).
+
+```gitignore
 # Environment files with real values
 .env
+```
+
+The next group: `.env` is the personal copy of settings (see **.env file**); it may hold local values and is never committed.
+
+> New words:
+>
+> - **.env file**: a plain text file of `NAME=value` lines that sets environment variables. `.env.example` is the committed template that lists every variable with a harmless default; you copy it to `.env` (which git ignores) to change values on your computer. No real secrets belong in the example file.
+
+```gitignore
 # Generated big test input
 *.big.csv
+```
+
+`*.big.csv` is the large generated input of `make stream-check`, never committed.
+
+```gitignore
 .omc/
 ```
 
-`.gitignore` lists patterns of files Git must not track. `target/` is the build output folder; `.idea/`, `*.iml`, `.vscode/` and `.DS_Store` are editor and macOS leftovers; `*.log` and `logs/` are logs; `dependency-reduced-pom.xml` is a file the Shade plugin can write; `.env` is the file for real settings (the committed `.env.example` has no secrets); `*.big.csv` is a generated test input;  `.omc/` is tool state. A trailing `/` matches folders. The rule from the repository template is: build artifacts and local state are never committed, so `git status` after the last commit shows nothing untracked.
-
-```
-.git
-.github
-target
-.idea
-.omc
-*.log
-```
-
-`.dockerignore` works the same way for `docker build`: these paths are not sent to Docker as build context, which keeps builds fast and keeps `.git` and `target` out of the image build.
-
-**Commits.** The history uses *conventional commits*: a type, a scope in parentheses, a colon and a short summary, for example `feat(domain): add Transaction...`, `build: ...`, `test: ...`, `docs: ...`, `fix(...)`. The body ends with a `Co-Authored-By:` line. Each commit is one logical change (domain, application, infrastructure, interfaces, tests, build files, docs) so the history reads as the order the program was built.
-
-**Fresh clone.** `git clone <folder> /tmp/fresh && cd /tmp/fresh` copies the committed files only. Following the README from there is the proof that nothing depends on files that happen to exist on the author's machine.
+`.omc/` is a folder created by a tool used while the repository was written.
 
 ## 6. Try it yourself
 
-- `git log --oneline`. Expected: the commits, newest first, each starting with a type such as `feat(...)`, `build:`, `test:` or `docs:`.
-- `git status --short`. Expected: no output (clean tree).
-- `git ls-files | wc -l`. Expected: the number of tracked files.
-- `git check-ignore -v target/` . Expected: the `.gitignore` line that ignores the folder.
-- `git clone . /tmp/fresh-copy && ls /tmp/fresh-copy`. Expected: only committed files; no `target/`.
+- `git log --oneline`. Expected: the commit list, newest first.
+- `git status --short`. Expected: no output when the working tree is clean.
+- `git check-ignore -v target/classes`. Expected: a line naming the `.gitignore` rule that ignores it (`.gitignore:2:target/`).
+- `git ls-files -s mvnw`. Expected: a line starting with `100755`, meaning the executable bit is stored.
+- `git clone . /tmp/fresh-clone && cd /tmp/fresh-clone && make test` (a clean-copy check). Expected: the tests pass; nothing needed from the original folder.
 
 ## 7. Mistakes people make
 
-- Committing build output or editor files; `.gitignore` prevents it.
-- Committing secrets. `.env` is ignored and `.env.example` holds names only.
-- Huge mixed commits; this history splits by layer.
-- Expecting `.gitignore` to untrack a file already committed (use `git rm --cached`).
+- Committing generated files: they clutter the history and conflict.
+- Committing secrets: a file in history stays there even after being deleted. `.env` is ignored for this reason.
+- Adding a pattern to `.gitignore` for a file that is already tracked: git keeps tracking it until `git rm --cached` is run.
+- Giant binary files in git; the lab's GC logs are ignored for that reason.
+- Forgetting the executable bit on a new script: `Permission denied` on a fresh clone.
 
 ## 8. Check yourself
 
-1. What is the staging area?
-   **Answer:** The set of changes chosen for the next commit.
-2. What does an empty `git status --short` mean?
-   **Answer:** No changed and no untracked files.
+1. What is a commit?
+   **Answer:** A saved snapshot of the tracked files with a message, linked to the previous snapshot.
+2. What does `.gitignore` do?
+   **Answer:** Lists files git should not track or offer to add.
 3. Why is `.env` ignored but `.env.example` committed?
-   **Answer:** `.env` may hold real settings; `.env.example` only lists names and safe defaults.
-4. What is a fresh-clone test?
-   **Answer:** Cloning the repository into a new folder and following the README, to prove nothing depends on files that are not committed.
-5. What does `feat(domain): ...` tell you?
-   **Answer:** The commit type (a feature) and the part of the code it touches.
+   **Answer:** `.env` may hold personal or secret values; the example documents the variables with harmless defaults.
+4. How can you prove a repository is complete?
+   **Answer:** Clone it fresh and run the build and tests there.
+5. What does `100755` mean in `git ls-files -s`?
+   **Answer:** A regular file with the executable bit set.
 
 ## 9. Further reading
 
 - Pro Git book: https://git-scm.com/book/en/v2
-- gitignore: https://git-scm.com/docs/gitignore
-- Conventional Commits 1.0.0: https://www.conventionalcommits.org/en/v1.0.0/
-- Keep a Changelog 1.1.0: https://keepachangelog.com/en/1.1.0/
+- gitignore patterns: https://git-scm.com/docs/gitignore

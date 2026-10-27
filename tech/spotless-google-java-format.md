@@ -2,7 +2,7 @@
 
 ## 1. What it is
 
-A **formatter** rewrites source code into one fixed layout, so people never argue about spaces and line breaks. **google-java-format** is Google's formatter for Java. **Spotless** is a build plugin that runs formatters (and other fixers) as part of the Maven build, either to check or to rewrite the files.
+A **formatter** is a program that rewrites source code into one fixed layout (indentation, line breaks, spaces, order of imports), so that people never argue about it and every file looks as if one person wrote it. **google-java-format** is Google's formatter for Java. **Spotless** is a build plugin that runs formatters as part of the Maven build, in one of two modes: `check` (fail if any file would change) or `apply` (rewrite the files).
 
 ## 2. Why this repository uses it
 
@@ -12,7 +12,7 @@ The repository rule is "formatter and linter configured in the repository and ru
 
 | File | What it does with the technology |
 | --- | --- |
-| `pom.xml` | plugin and formatter versions, the `<java>` settings |
+| `pom.xml` | plugin and formatter versions, the `<java>` steps |
 | `.mvn/jvm.config` | opens JDK internals the formatter needs |
 | `Makefile` | `lint` runs `spotless:check`, `format` runs `spotless:apply` |
 | `.editorconfig` | the same indentation (2 spaces) for editors |
@@ -20,45 +20,58 @@ The repository rule is "formatter and linter configured in the repository and ru
 
 ## 4. How it works underneath
 
-- Spotless loads the formatter jar in its own class loader, finds all `src/**/*.java` files, runs the formatter on each in memory and compares the result with the file on disk.
-- `check` reports the files that differ and fails; `apply` writes the formatted text back.
-- The formatter never changes what the code does, only its layout. It does not run the compiler, so it cannot find type errors.
+1. Spotless loads the formatter jar in its own class loader (a separate area of the JVM for loading classes), finds all `src/**/*.java` files, runs the formatter on each in memory and compares the result with the file on disk.
+2. `check` reports the files that differ and fails the build; `apply` writes the formatted text back to the files.
+3. The formatter never changes what the code does, only its layout. It does not run the compiler, so it cannot find type errors.
+4. To parse Java, google-java-format uses the JDK compiler's internal classes; `.mvn/jvm.config` opens them (see `maven-wrapper.md`).
 
 ## 5. Walkthrough of this repository's use
 
+### The Makefile targets that call Spotless
+
+`make lint` runs `$(MVN) -B spotless:check checkstyle:check clean compile test-compile`: `spotless:check` comes first so formatting problems are found before anything else. `make format` runs `$(MVN) -B spotless:apply` to fix the files in place. The CI runs `make lint`, so unformatted code cannot be merged.
+
+### The plugin entry in `pom.xml`
+
 ```xml
+      <plugin>
+        <groupId>com.diffplug.spotless</groupId>
         <artifactId>spotless-maven-plugin</artifactId>
         <version>${spotless-plugin.version}</version>
+```
+
+The plugin entry: group `com.diffplug.spotless`, artifact `spotless-maven-plugin`, version from the property `spotless-plugin.version` (3.10.4). It has no `<executions>` block, so it does nothing during a normal build; it runs only when the Makefile names its goals.
+
+```xml
         <configuration>
           <java>
+```
+
+The settings. `<java>` configures the steps Spotless applies to Java files; by default it covers `src/main/java/**/*.java` and `src/test/java/**/*.java`.
+
+```xml
             <googleJavaFormat>
               <version>${google-java-format.version}</version>
               <style>GOOGLE</style>
             </googleJavaFormat>
+```
+
+The first step: run **google-java-format**. `<version>` pins the formatter to 1.36.1 (a separate download from the plugin); `<style>GOOGLE</style>` selects Google's layout (2-space indent, 100-column lines). The alternative style `AOSP` uses 4 spaces.
+
+```xml
             <removeUnusedImports/>
+```
+
+The second step deletes `import` lines that nothing in the file uses.
+
+```xml
             <importOrder/>
           </java>
         </configuration>
       </plugin>
 ```
 
-- `spotless-maven-plugin` 3.10.4 is the Maven plugin. It has two goals this repository uses: `spotless:check` (fail if any file would change) and `spotless:apply` (rewrite the files).
-- `<googleJavaFormat>` picks the formatter **google-java-format**, a program that parses Java source and prints it again in one fixed layout (2-space indent, 100-column lines, one import per line, a fixed blank-line rule). `<style>GOOGLE</style>` is its default style (the other, `AOSP`, uses 4 spaces).
-- `<version>${google-java-format.version}</version>` pins it to 1.36.1. The pom comment says why not 1.37.0: it failed inside this Spotless on Java 25.
-- `<removeUnusedImports/>` deletes imports nothing uses. `<importOrder/>` sorts imports into the standard order. Both run in addition to the formatter.
-
-```make
-lint: ## Spotless (google-java-format) check, Checkstyle, compiler -Xlint:all -Werror
-	$(MVN) -B spotless:check checkstyle:check clean compile test-compile
-```
-
-`make lint` calls `spotless:check` first, so formatting problems are found before anything else. `make format` calls `spotless:apply` to fix them. The CI runs `make lint`, so unformatted code cannot be merged.
-
-```text
---add-exports jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED
-```
-
-The formatter parses Java with the JDK compiler's internal classes, so `.mvn/jvm.config` opens them (see `maven-wrapper.md`).
+The third step sorts the imports in the plugin's standard order (an empty element means: default settings). The remaining closing tags end `<java>`, `<configuration>` and the plugin.
 
 ## 6. Try it yourself
 

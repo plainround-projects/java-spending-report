@@ -2,7 +2,7 @@
 
 ## 1. What it is
 
-**Code coverage** tells you how much of the code the tests actually ran. **JaCoCo** (Java Code Coverage) measures it. A Java **agent** is a small program attached to the JVM at start-up (`-javaagent:`); it watches every class as it loads and records which lines and branches execute.
+**Code coverage** tells you how much of the program's code the tests actually ran. If a test run never reaches a line, no test can have caught a mistake on it. **JaCoCo** (Java Code Coverage) measures it. It works through a Java **agent**: a small program attached to the JVM at start-up with the option `-javaagent:`. The agent watches every class as it loads and counts which lines and branches run.
 
 ## 2. Why this repository uses it
 
@@ -20,24 +20,36 @@ The repository rule: "coverage reported, with the domain at or near full coverag
 
 ## 4. How it works underneath
 
-- JaCoCo **instruments** classes on the fly: when a class loads, the agent adds counters to it. Nothing is changed on disk.
-- When the test JVM ends, the agent writes all counters to `target/jacoco.exec`.
-- The `report` goal reads that file plus `target/classes` and computes, per package and class, the covered and missed **instructions**, **lines**, **branches** and **methods**.
-- `check` compares those numbers with the rules and fails the build with `Coverage checks have not been met` if one rule fails.
+1. JaCoCo **instruments** classes on the fly: when a class loads, the agent adds counters to its bytecode in memory. Nothing is changed on disk.
+2. When the test JVM ends, the agent writes all counters to `target/jacoco.exec`.
+3. The `report` goal reads that file plus `target/classes` and computes, per package and class, the covered and missed **instructions**, **lines**, **branches** and **methods**.
+4. `check` compares those numbers with the rules and fails the build with `Coverage checks have not been met` if one rule fails; otherwise it prints `All coverage checks have been met.`
 
 ## 5. Walkthrough of this repository's use
 
 ```xml
+      <plugin>
+        <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>
         <version>${jacoco-plugin.version}</version>
         <executions>
           <execution>
+```
+
+The plugin entry: group `org.jacoco`, artifact `jacoco-maven-plugin`, version 0.8.16 from the property.
+
+```xml
             <id>prepare-agent</id>
             <goals>
               <goal>prepare-agent</goal>
             </goals>
           </execution>
           <execution>
+```
+
+Execution 1, `prepare-agent`. The goal of the same name runs early (its default phase is `initialize`). It sets the Maven property `argLine` to `-javaagent:<path to the JaCoCo agent jar>=destfile=target/jacoco.exec`. Surefire (see `maven.md`) puts `@{argLine}` on the test JVM's command line, which attaches the **agent**, a program that watches the JVM, to the tests.
+
+```xml
             <id>report</id>
             <phase>test</phase>
             <goals>
@@ -45,12 +57,22 @@ The repository rule: "coverage reported, with the domain at or near full coverag
             </goals>
           </execution>
           <execution>
+```
+
+Execution 2, `report`, bound to the `test` phase, so it runs right after the tests. The goal `report` reads the recording `target/jacoco.exec` and the compiled classes and writes the report: `target/site/jacoco/index.html` for people, plus `jacoco.csv` and `jacoco.xml` for programs.
+
+```xml
             <id>check</id>
             <phase>verify</phase>
             <goals>
               <goal>check</goal>
             </goals>
             <configuration>
+```
+
+Execution 3, `check`, bound to `verify`: the last phase of `./mvnw verify`. The goal `check` compares the recording with the rules in its `<configuration>` and fails the build if any is broken.
+
+```xml
               <rules>
                 <rule>
                   <element>PACKAGE</element>
@@ -59,11 +81,21 @@ The repository rule: "coverage reported, with the domain at or near full coverag
                   </includes>
                   <limits>
                     <limit>
+```
+
+The first `<rule>` has `<element>PACKAGE</element>`: it applies to each Java package that matches `<includes>`, here only `com.plainround.spend.domain`, the package with the business rules.
+
+```xml
                       <counter>LINE</counter>
                       <value>COVEREDRATIO</value>
                       <minimum>0.95</minimum>
                     </limit>
                     <limit>
+```
+
+Its first `<limit>`: the **counter** `LINE` (lines of source that were run), measured as `COVEREDRATIO` (covered lines divided by all lines), must be at least `0.95`, i.e. 95%.
+
+```xml
                       <counter>BRANCH</counter>
                       <value>COVEREDRATIO</value>
                       <minimum>0.90</minimum>
@@ -71,6 +103,11 @@ The repository rule: "coverage reported, with the domain at or near full coverag
                   </limits>
                 </rule>
                 <rule>
+```
+
+The second `<limit>`: the counter `BRANCH` (each possible outcome of a decision, such as the `if` side and the `else` side) must be covered to at least `0.90`, 90%.
+
+```xml
                   <element>BUNDLE</element>
                   <limits>
                     <limit>
@@ -87,17 +124,7 @@ The repository rule: "coverage reported, with the domain at or near full coverag
       </plugin>
 ```
 
-- Three **executions** (named runs of the plugin) with their goals:
-- `prepare-agent` runs before the tests. It sets the Maven property `argLine` to `-javaagent:.../org.jacoco.agent-0.8.16-runtime.jar=destfile=target/jacoco.exec`. Surefire (see `maven.md`) puts `@{argLine}` on the test JVM's command line, so the **agent** (a program that watches the JVM) records which lines run.
-- `report` runs in the `test` phase after the tests and turns `target/jacoco.exec` into a readable report: `target/site/jacoco/index.html` for people, `jacoco.csv` and `jacoco.xml` for programs.
-- `check` runs in `verify` and fails the build if the coverage rules below are not met.
-
-The rules: 
-
-- Rule 1, `element` `PACKAGE` including only `com.plainround.spend.domain`: at least 95% of lines (`LINE`, `COVEREDRATIO` 0.95) and 90% of branches (`BRANCH`) covered. A **branch** is one way a decision can go (the `if` side or the `else` side).
-- Rule 2, `element` `BUNDLE` (the whole project): at least 85% of lines.
-
-So the domain, the code with the business rules, must be almost fully tested, and the rest at least mostly.
+The second `<rule>`: `BUNDLE` means the whole project. Its one limit demands at least 85% of all lines covered. The domain is therefore held to a stricter standard than the rest. The remaining closing tags end the rules, the execution and the plugin.
 
 ## 6. Try it yourself
 

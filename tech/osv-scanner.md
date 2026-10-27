@@ -2,7 +2,7 @@
 
 ## 1. What it is
 
-OSV-Scanner is a command-line tool from Google that reads a project's dependency list and checks every library and version against OSV (Open Source Vulnerabilities), a public database of known security problems. It prints the libraries with known issues, or `No issues found`.
+Every library you use is code written by someone else, and sometimes a security problem is found in it and published. OSV-Scanner is a command-line tool from Google that reads a project's dependency list and checks every library and version against OSV (Open Source Vulnerabilities), a public database of known security problems. It prints the libraries with known issues, or `No issues found`.
 
 ## 2. Why this repository uses it
 
@@ -18,23 +18,35 @@ The repository promises that dependencies are pinned and "checked by the CI's au
 
 ## 4. How it works underneath
 
-- The scanner walks the folder and finds `pom.xml`. For Maven it extracts the dependencies (direct ones, and with its Maven resolver also those they pull in).
-- For each `group:artifact:version` it asks the OSV database whether a known vulnerability affects that version.
-- Exit status 0 means no issues; non-zero means findings or an error, which fails `make audit` and the CI job.
-- The tool runs in a container (`ghcr.io/google/osv-scanner:v2.7.0`), so nothing must be installed on the host.
+1. The scanner walks the folder and finds `pom.xml`. For Maven it extracts the dependencies (direct ones, and, with its Maven resolver, also those they pull in).
+2. For each `group:artifact:version` it asks the OSV database whether a known vulnerability affects that version.
+3. Exit status 0 means no issues; non-zero means findings or an error, which fails `make audit` and the CI job.
+4. The tool runs in a container (`ghcr.io/google/osv-scanner:v2.7.0`), so nothing must be installed on the host.
 
 ## 5. Walkthrough of this repository's use
+
+### The command
 
 ```make
 audit: ## known-vulnerability scan of the dependencies with OSV-Scanner (needs Docker)
 	docker run --rm -v "$(CURDIR)":/src -w /src ghcr.io/google/osv-scanner:v2.7.0 scan source --recursive /src
 ```
 
-`scan source` scans a source tree (as opposed to an image or a lock file alone). `--recursive` looks in subfolders. `/src` is the mounted project folder. A normal run prints `Scanned /src/pom.xml file and found 5 packages` and `No issues found`. The warning about the `pomxml` enricher running on untrusted artifacts is expected: it says the Maven resolver may contact Maven Central.
+| Part | Meaning |
+| --- | --- |
+| `docker run --rm` | start a container and delete it afterwards |
+| `-v "$(CURDIR)":/src` | share the project folder (Make `$(CURDIR)`) with the container as `/src` |
+| `-w /src` | start in that folder |
+| `ghcr.io/google/osv-scanner:v2.7.0` | the image: the scanner, version pinned, from the GitHub registry |
+| `scan source` | scan a source tree (as opposed to an image or a lock file alone) |
+| `--recursive` | look in subfolders too |
+| `/src` | the folder to scan, inside the container |
+
+A normal run prints `Scanned /src/pom.xml file and found 5 packages` and `No issues found`. A warning about the `pomxml` enricher running on untrusted artifacts is expected: it says the Maven resolver may contact Maven Central.
 
 ## 6. Try it yourself
 
-- `make audit`. Expected: `Scanned /src/pom.xml file and found 5 packages` ... `No issues found`.
+- `make audit`. Expected: `Scanned /src/pom.xml file and found 5 packages` ... `No issues found` (needs Docker running and network access).
 - Pin an old, vulnerable version in a scratch copy (for example an old `logback-classic`) and run again. Expected: a table of vulnerabilities with OSV ids and fixed versions.
 - `docker run --rm ghcr.io/google/osv-scanner:v2.7.0 --version`. Expected: `osv-scanner version: 2.7.0`.
 

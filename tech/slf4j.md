@@ -2,7 +2,7 @@
 
 ## 1. What it is
 
-SLF4J (Simple Logging Facade for Java) is a **facade**: a small library with the logging calls (`info`, `warn`, `debug`) but no code that prints anything. At run time it finds a real logging engine on the class path (here Logback) and hands the messages to it. The code stays the same when the engine changes.
+A **log** is a running diary a program writes about what it is doing: "started", "read 12 rows", "something unexpected happened". Each entry has a **level** that says how important it is, from `ERROR` (most serious) through `WARN`, `INFO` and `DEBUG` to `TRACE` (most detailed). A person or a tool can then choose how much to see. **SLF4J** (Simple Logging Facade for Java) is a **facade**: a small library that offers the logging calls (`info`, `warn`, `debug`) but contains no code that prints anything. At run time it finds a real logging engine on the class path (here Logback, see `logback.md`) and hands the messages to it. The program's code stays the same if the engine changes.
 
 ## 2. Why this repository uses it
 
@@ -13,43 +13,37 @@ The repository wants structured logging with levels and no secrets. The code wri
 | File | What it does with the technology |
 | --- | --- |
 | `pom.xml` | `org.slf4j:slf4j-api:${slf4j.version}`, compile scope |
-| `src/main/java/**` (the files that log) | each declares `Logger LOG = LoggerFactory.getLogger(...)` |
+| `src/main/java/**` (the files that log) | `CsvFileRowSource.java`, `SpendCli.java` |
 | `src/test/resources/logback-test.xml` | turns logging down to WARN in tests |
-
-Files that log: `CsvFileRowSource.java`, `SpendCli.java`.
 
 ## 4. How it works underneath
 
-- At start-up, SLF4J looks for a **provider** on the class path using Java's `ServiceLoader` (a file under `META-INF/services/` that names the implementation). Logback provides one. The Shade plugin keeps those service files when it builds the single jar.
-- `LoggerFactory.getLogger(...)` returns a logger object. `info(...)` asks the engine: is INFO enabled for this logger? If yes, format the message (replace `{}` with the arguments) and write it.
-- If no provider is found, SLF4J prints a warning once and logs nothing (a "no-operation" logger).
+1. **Finding the engine.** At start-up SLF4J looks for a **provider** on the class path using Java's `ServiceLoader` (a file under `META-INF/services/` that names the implementation). Logback provides one. The Shade plugin keeps those service files when it builds the single jar.
+2. **A logger** is an object with a name. `LoggerFactory.getLogger(CsvFileRowSource.class)` returns the logger named after the class; the log line shows that name so you can see where it came from.
+3. **A call** such as `LOG.info("reading file path={}", path)` asks the engine: is INFO enabled for this logger? If yes, format the message (each `{}` is replaced by the next argument, in order) and write it. If not, nothing is built: a disabled call costs almost nothing.
+4. **Levels** from loudest to quietest: `ERROR`, `WARN`, `INFO`, `DEBUG`, `TRACE`. Setting a logger to a level shows that level and everything louder. Here the root level comes from the `LOG_LEVEL` **environment variable** (default `INFO`).
+5. **Key=value style.** Every message in this repository is written as `words key={} key={}` so that a tool can split a line into fields.
+6. If no provider is found, SLF4J prints a warning once and logs nothing (a "no-operation" logger).
 
 ## 5. Walkthrough of this repository's use
 
-Each class that logs declares one logger at the top:
+### The logger declaration
 
-```java
-  private static final Logger LOG = LoggerFactory.getLogger(CsvFileRowSource.class);
-```
+Every class that logs declares one logger at the top: `private static final Logger LOG = LoggerFactory.getLogger(X.class);` (the leak lab's audit classes use the name `"audit"` instead of a class, so that one setting controls both). `Logger` and `LoggerFactory` come from the package `org.slf4j`. The field is `private static final`: one per class, created once, never changed.
 
-`Logger` and `LoggerFactory` come from SLF4J (`org.slf4j`). `getLogger(X.class)` returns the logger named after the class, so every line says where it came from (the pattern prints the short name). The field is `private static final`: one per class, never changed.
+### Every log call in the program
 
-A call:
+| File | Call | What it reports |
+| --- | --- | --- |
+| `CsvFileRowSource.java` | `LOG.info("reading file path={}"...)` | INFO when the spending report starts reading the input file; the path is the only value. |
+| `SpendCli.java` | `LOG.info("report done rows={} rejected={}"...)` | INFO when the report is finished: how many good rows and how many rejected rows. |
 
-```java
-    LOG.info("reading file path={}", path);
-```
-
-Every log call in this repository is a key=value pair so a tool can split the line. `{}` is a placeholder: SLF4J puts the value of `path` there only if the INFO level is on, so a disabled call costs almost nothing.
-
-Levels, from loudest to quietest: `ERROR`, `WARN`, `INFO`, `DEBUG`, `TRACE`. Setting a logger to a level shows that level and everything louder. In this repository the root level comes from the `LOG_LEVEL` environment variable (see `logback.md`), default `INFO`.
-
-The `slf4j-api` jar in the pom is the only logging library the code compiles against. No class imports Logback. Which engine prints the lines is decided at run time by what else is on the class path (see `logback.md`), and an ArchUnit rule keeps logging out of the `domain` package.
+The `slf4j-api` jar is the only logging library the code compiles against. No class imports Logback, and an ArchUnit rule keeps logging out of the `domain` package.
 
 ## 6. Try it yourself
 
 - `grep -rn 'LoggerFactory' src/main/java | head`. Expected: one `Logger LOG = LoggerFactory.getLogger(...)` line per class that logs.
-- Run the program and look at standard error (see the README for the command), for example `LOG_LEVEL=DEBUG` before the command. Expected: extra `level=DEBUG` lines appear.
+- Run the program and look at standard error (see the README for the command), with `LOG_LEVEL=DEBUG` before the command. Expected: extra `level=DEBUG` lines appear.
 - `./mvnw dependency:tree | grep -i slf4j`. Expected: `org.slf4j:slf4j-api:jar:2.0.20:compile`.
 
 ## 7. Mistakes people make
@@ -77,3 +71,7 @@ The `slf4j-api` jar in the pom is the only logging library the code compiles aga
 - SLF4J 2.0 manual: https://www.slf4j.org/manual.html
 - Fluent logging API (2.0): https://www.slf4j.org/manual.html#fluent
 - SLF4J FAQ: https://www.slf4j.org/faq.html
+
+> New words:
+>
+> - **environment variable**: a named text setting that a program inherits from the process that started it, for example `LOG_LEVEL=DEBUG`. Programs read them to be configured without changing code.

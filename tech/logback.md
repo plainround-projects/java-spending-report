@@ -2,7 +2,7 @@
 
 ## 1. What it is
 
-Logback is a **logging engine**: it receives the events that SLF4J forwards and writes them somewhere in some format. It is configured by an XML file. The pieces are an **appender** (where to write), an **encoder** with a **pattern** (what each line looks like) and a **level** (how much to write).
+SLF4J (see `slf4j.md`) only takes the log calls. **Logback** is the **logging engine** behind it: it receives each event and writes it somewhere in some format. It is configured by an XML file with three kinds of pieces: an **appender** (where to write: the console, a file), an **encoder** with a **pattern** (what each line looks like) and a **level** (how much to write).
 
 ## 2. Why this repository uses it
 
@@ -19,42 +19,115 @@ The repository requires structured logs with levels. One small file gives every 
 
 ## 4. How it works underneath
 
-- At the first log call SLF4J loads Logback's provider; Logback then looks for `logback-test.xml`, then `logback.xml`, on the class path and builds its appenders from it.
-- Each log call becomes an event with a time, level, logger name, message and thread. The root logger passes it to its appenders if the level is enabled.
-- The console appender formats the event with the pattern and writes the line to `System.err`.
-- The configuration file is read once, at start-up.
+1. At the first log call SLF4J loads Logback's provider; Logback then looks for `logback-test.xml`, then `logback.xml`, on the class path and builds its appenders from it.
+2. Each log call becomes an event with a time, level, logger name, message and thread. The root logger passes it to its appenders if the event's level is at least the root level.
+3. The console appender formats the event with the pattern and writes the line to `System.err`.
+4. The configuration file is read once, at start-up.
 
 ## 5. Walkthrough of this repository's use
 
+### `src/main/resources/logback.xml`
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+```
+
+The XML declaration: XML version 1.0, UTF-8 text.
+
+```xml
+<!-- Structured key=value (logfmt) lines on standard error; standard output carries only the report. -->
+```
+
+An **XML comment** describing the file: key=value lines on standard error, and standard output carries only the report.
+
+> New words:
+>
+> - **XML comment**: text between `<!--` and `-->`. Tools ignore it; it is there for the human reader.
+
 ```xml
 <configuration>
+```
+
+`<configuration>` is the root of a Logback file. Logback finds `logback.xml` on the **class path** (the list of places Java looks for files and classes) at start-up; this one is in `src/main/resources`, so it ends up inside the jar.
+
+```xml
   <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+```
+
+An **appender** is a destination for log lines. `name="STDERR"` is a label chosen here; `class="ch.qos.logback.core.ConsoleAppender"` selects the kind: write to the console.
+
+```xml
     <target>System.err</target>
+```
+
+`System.err` chooses **standard error**, the stream meant for diagnostics. The default would be standard output, which this program keeps clean for its real output.
+
+```xml
     <encoder>
       <pattern>ts=%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} level=%level logger=%logger{0} msg="%msg"%n%ex{short}</pattern>
     </encoder>
   </appender>
+```
+
+The **encoder** turns an event into text. Its `<pattern>` is the template; each `%word` is replaced by a part of the event:
+
+| Part | Meaning |
+| --- | --- |
+| `%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}` | the time: year-month-day, the letter T, hours:minutes:seconds, milliseconds, and the zone offset (`XXX` prints `Z` for UTC) |
+| `%level` | the level (`INFO`, `WARN`, ...) |
+| `%logger{0}` | the logger name shortened to the class name only (`0` means no package parts) |
+| `%msg` | the message, with its `{}` already filled in |
+| `%n` | a line break |
+| `%ex{short}` | the exception, if there is one, cut down to its first line |
+
+The fixed words `ts=`, `level=`, `logger=` and `msg=` make every line a set of `key=value` pairs, the **logfmt** style that tools can split reliably. Example: `ts=2026-10-27T12:00:03.250Z level=INFO logger=SpendCli msg="report done rows=15 rejected=10"`.
+
+```xml
   <root level="${LOG_LEVEL:-INFO}">
     <appender-ref ref="STDERR"/>
   </root>
 </configuration>
 ```
 
-- `<configuration>` is the root of a Logback config file. Logback finds `logback.xml` on the class path at start-up (our file is in `src/main/resources`, so it ends up in the jar).
-- `<appender>` names a destination. `ConsoleAppender` writes to the console; `<target>System.err</target>` selects **standard error** (the stream for diagnostics). The default would be standard output, which this program keeps clean for its real output.
-- `<encoder>` decides how an event becomes text. `<pattern>` is the template. `%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}` is the time in ISO form with milliseconds and the zone offset (`Z` for UTC); `%level` the level; `%logger{0}` the logger name shortened to the class name only; `%msg` the message; `%n` a newline; `%ex{short}` the exception, if any, cut to the first lines. The fixed words `ts=`, `level=`, `logger=`, `msg=` make every line a set of `key=value` pairs, the **logfmt** style that tools can split.
-- `<root level="${LOG_LEVEL:-INFO}">` sets the level for every logger. `${NAME:-default}` reads the variable `NAME` from the system properties or the environment, and uses `INFO` when it is not set. So `LOG_LEVEL=DEBUG` in the environment turns debug on without editing a file (twelve-factor configuration).
-- `<appender-ref ref="STDERR"/>` connects the root logger to the appender named `STDERR`.
+The **root logger** is the ancestor of every logger, so its level applies everywhere. `${LOG_LEVEL:-INFO}` reads the variable `LOG_LEVEL` from the system properties or the **environment variable**s and uses `INFO` when it is not set. So `LOG_LEVEL=DEBUG` in the environment turns debug on without editing any file. `<appender-ref ref="STDERR"/>` connects the root logger to the appender named `STDERR`. The last tag closes `<configuration>`.
 
-In the tests a second file replaces this one:
+> New words:
+>
+> - **environment variable**: a named text setting that a program inherits from the process that started it, for example `LOG_LEVEL=DEBUG`. Programs read them to be configured without changing code.
+
+### `src/test/resources/logback-test.xml`
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+```
+
+The XML declaration.
+
+```xml
+<configuration>
+```
+
+Same structure as the main file. Logback looks for `logback-test.xml` on the class path *before* `logback.xml`; during tests both exist, and the test file wins.
+
+```xml
+  <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+    <target>System.err</target>
+    <encoder>
+      <pattern>ts=%d{HH:mm:ss.SSS} level=%level logger=%logger{0} msg="%msg"%n%ex{short}</pattern>
+    </encoder>
+  </appender>
+```
+
+The same console appender writing to standard error. The only difference in the pattern is the shorter time `%d{HH:mm:ss.SSS}` (hours, minutes, seconds, milliseconds), enough for a test run.
 
 ```xml
   <root level="WARN">
     <appender-ref ref="STDERR"/>
   </root>
+</configuration>
 ```
 
-Logback looks for `logback-test.xml` before `logback.xml`. With the root level at `WARN`, the test output shows only problems, not hundreds of `INFO` lines.
+The root level is fixed at `WARN`, so the test output shows only problems, not hundreds of `INFO` lines.
 
 ## 6. Try it yourself
 
