@@ -21,7 +21,7 @@ The repository promises a CI workflow that runs the same Makefile targets a pers
 2. Each **job** gets its own fresh virtual machine; jobs run in parallel unless `needs:` orders them. Nothing is shared between jobs.
 3. A **step** is either `uses:` (run a packaged action, identified by `owner/name@version`) or `run:` (run a shell command).
 4. A step fails if its command exits with a non-zero status; the job stops (unless `if: always()` marks a later step) and the whole run is marked red.
-5. The workflow could not be run in the authoring environment; its commands are the same ones verified locally.
+5. The workflow itself has not been run on GitHub from this machine; its commands are the same ones that were run locally (`make lint`, `make test`, `make audit`, and the Docker targets).
 
 ## 5. Walkthrough of this repository's use
 

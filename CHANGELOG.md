@@ -15,4 +15,4 @@ All notable changes to this project are recorded here. The format follows [Keep 
 
 ### Notes
 
-- The container build (`Dockerfile`) is written to the repository rules (multi-stage, non-root, base images pinned by digest) and `docker compose config` renders. The first end-to-end `docker build` could not be finished on the build machine on 2026-10-27: Docker's VM was starved by dozens of other jobs (the `apt-get` layer alone ran for over an hour), so the image build and `make docker-run` were not exercised there. Everything else, including `make audit` (OSV-Scanner in Docker), was run. Run `make docker-build` first on a quiet machine.
+- The container build was run on 2026-11-02 on a quiet machine: `make docker-build` built the image (334 MB, runs as `10001:10001`, user `app`), `make docker-run` printed the sample report with the ten rejected rows and exited with status 2 as expected, and `docker run` with no arguments printed the usage line. `make audit` (OSV-Scanner in Docker) was run earlier.
