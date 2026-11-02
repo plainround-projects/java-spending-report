@@ -33,7 +33,7 @@ The lesson is a Java lesson, and the repository is written the way a production 
 ### The words of the language, in the order you meet them
 
 - **Statements and blocks.** A statement ends with a semicolon `;`. Statements are grouped between curly braces `{ ... }` into a **block**; a class body, a method body, an `if` body are blocks. Indentation is only for people; the braces are what the compiler reads.
-- **Comments.** `// text` runs to the end of the line; `/* ... */` can span lines; `/** ... */` is **Javadoc**, a comment that tools turn into documentation. All three are ignored by the compiler. (The walkthrough below leaves Javadoc out of the quoted code; everything else is shown.)
+- **Comments.** `// text` runs to the end of the line; `/* ... */` can span lines; `/** ... */` is **Javadoc**, a comment that tools turn into documentation. All three are ignored by the compiler. (The walkthrough below shows the Javadoc too.)
 - **Names.** Classes are written `UpperCamelCase` (`SpendingReport`), methods and variables `lowerCamelCase` (`rowsRead`), constants `UPPER_SNAKE_CASE` (`NO_STATUS`). Java is case-sensitive.
 - **Types.** There are two families. **Primitive types** hold a plain value directly: `int` (whole number, about +/- 2 billion), `long` (64-bit whole number; a number literal ends in `L`), `double` (decimal number in binary form, inexact), `boolean` (`true` or `false`), `char` (one character, written in single quotes `'a'`), `byte` (8 bits). **Reference types** hold a reference (an arrow) to an **object**: `String` (text, written in double quotes), arrays (`int[]`), and every class. The value `null` means "no object".
 - **Variables.** `int count = 0;` declares a variable of type `int` and gives it a value. `final` forbids changing it afterwards. `var x = 5;` lets the compiler infer the type. Fields (variables of a class) and local variables (inside a method) are different places.
@@ -60,7 +60,7 @@ Everything in `java.base`, the core module: `java.lang` (String, Math, Thread, e
 
 ## 5. Walkthrough of this repository's use
 
-Every Java file of the repository is explained below, in the order a newcomer should read it: first the program (`src/main/java`), starting with the innermost layer, then the tests (`src/test/java`). Each file is shown in pieces, and each piece is followed by its explanation. One thing is left out of the quoted code to keep it readable: the Javadoc comments (the `/** ... */` blocks above classes and methods, which say the same things as the explanations). Every other line of every file is shown. A word in **bold** is explained the first time it appears, in plain words, in brackets; later it appears in normal type. The glossary at the end of this section lists all of them again, so you can jump to it at any time.
+Every Java file of the repository is explained below, in the order a newcomer should read it: first the program (`src/main/java`), starting with the innermost layer, then the tests (`src/test/java`). Each file is shown in pieces, and each piece is followed by its explanation. Every line of every file is shown, including the Javadoc comments (the `/** ... */` blocks above classes and methods: documentation written for people, which tools turn into web pages; the first sentence is a summary, and `@param`, `@return` and `@throws` lines describe parameters, results and errors). A word in **bold** is explained the first time it appears, in plain words, in brackets; later it appears in normal type. The glossary at the end of this section lists all of them again, so you can jump to it at any time.
 
 ### Part A. The program
 
@@ -93,6 +93,16 @@ import java.util.Currency;
 | `Currency` | `java.util.Currency` | an ISO 4217 currency such as USD, with its number of minor-unit digits |
 
 ```java
+/**
+ * One card transaction. Money is an exact {@link BigDecimal}; a zero amount is allowed (a waived
+ * fee is still a real row), a negative one is not.
+ *
+ * @param date the day the purchase was posted
+ * @param description the merchant text as exported
+ * @param amount the exact amount, never negative
+ * @param currency the currency of the amount
+ * @param category the spending category, never blank
+ */
 public record Transaction(
     LocalDate date, String description, BigDecimal amount, Currency currency, String category) {
 ```
@@ -106,6 +116,7 @@ public record Transaction(
 > - **accessor**: a method that returns one field's value. A record gives each component an accessor with the component's own name, for example `amount()`.
 
 ```java
+  /** Rejects missing or invalid fields, naming the field first in each message. */
   public Transaction {
     if (date == null) {
       throw new IllegalArgumentException("date must not be null");
@@ -142,6 +153,11 @@ package com.plainround.spend.domain;
 ```
 
 ```java
+/**
+ * The outcome of reading one input line: a valid {@link Transaction} or a {@link Rejected} reason.
+ * A bad row is expected input, so it is data and not an exception; the sealed type makes the
+ * compiler force every caller to handle both cases.
+ */
 public sealed interface ParsedRow permits ParsedRow.Ok, ParsedRow.Rejected {
 ```
 
@@ -153,12 +169,24 @@ public sealed interface ParsedRow permits ParsedRow.Ok, ParsedRow.Rejected {
 > - **interface**: a list of method names that a class promises to provide, without the code. Other code can use the interface and not care which class stands behind it.
 
 ```java
+  /**
+   * A row that became a valid transaction.
+   *
+   * @param transaction the parsed transaction
+   */
   record Ok(Transaction transaction) implements ParsedRow {}
 ```
 
 `Ok` is a record declared inside the interface. It `implements ParsedRow` and carries one component, the good `Transaction`. The empty braces `{}` mean the record needs no extra code.
 
 ```java
+  /**
+   * A row that could not be used.
+   *
+   * @param lineNumber the line in the file, counting the header as line 1
+   * @param line the raw text of the line
+   * @param reason what is wrong, written for the person who has to fix the file
+   */
   record Rejected(int lineNumber, String line, String reason) implements ParsedRow {}
 }
 ```
@@ -181,6 +209,12 @@ import java.math.BigDecimal;
 | `BigDecimal` | `java.math.BigDecimal` | a decimal number with exact digits, used for money |
 
 ```java
+/**
+ * The exact sum spent in one category.
+ *
+ * @param category the category name
+ * @param total the exact, unrounded sum
+ */
 public record CategoryTotal(String category, BigDecimal total) {}
 ```
 
@@ -206,6 +240,13 @@ import java.util.List;
 | `List` | `java.util.List` | an ordered collection of elements |
 
 ```java
+/**
+ * Everything spent in one month.
+ *
+ * @param month the calendar month
+ * @param categories the category totals, largest first, ties by name
+ * @param total the exact sum over all categories
+ */
 public record MonthlyTotals(YearMonth month, List<CategoryTotal> categories, BigDecimal total) {
 ```
 
@@ -217,6 +258,7 @@ A record with a `YearMonth` (a year and a month, such as 2026-01), a **list** of
 > - **generics**: type parameters in angle brackets: `List<String>` is a list that holds only strings. The compiler checks the types so a wrong element cannot slip in.
 
 ```java
+  /** Copies the list so the value cannot change after construction. */
   public MonthlyTotals {
     categories = List.copyOf(categories);
   }
@@ -247,6 +289,16 @@ import java.util.List;
 | `List` | `java.util.List` | an ordered collection of elements |
 
 ```java
+/**
+ * The finished report: totals, the largest purchases and the rows that could not be read.
+ *
+ * @param currency the currency every amount is in
+ * @param rowsRead how many rows became transactions
+ * @param rejectedCount how many rows were rejected, including those not kept in {@code rejected}
+ * @param months one entry per month with spending, oldest first
+ * @param largest the largest purchases, biggest first
+ * @param rejected the rejected rows kept for display, in file order
+ */
 public record SpendingReport(
     Currency currency,
     int rowsRead,
@@ -259,6 +311,7 @@ public record SpendingReport(
 A record with six components: the report `currency`, how many rows were good (`rowsRead`), how many were rejected (`rejectedCount`, always exact), the monthly totals, the largest purchases, and the rejected rows that are kept for display (a shorter list than `rejectedCount` when there were very many).
 
 ```java
+  /** Copies the lists so the value cannot change after construction. */
   public SpendingReport {
     months = List.copyOf(months);
     largest = List.copyOf(largest);
@@ -269,6 +322,7 @@ A record with six components: the report `currency`, how many rows were good (`r
 The compact constructor makes immutable copies of the three lists with `List.copyOf`, so the report cannot change after it is built.
 
 ```java
+  /** Returns true when at least one row was rejected. */
   public boolean hasRejects() {
     return rejectedCount > 0;
   }
@@ -313,8 +367,14 @@ import java.util.TreeMap;
 | `TreeMap` | `java.util.TreeMap` | a map that keeps its keys sorted |
 
 ```java
+/**
+ * Folds parsed rows into a {@link SpendingReport} one at a time. Memory is bounded by the number of
+ * month and category pairs, the few largest purchases and a capped list of rejects, so a file of
+ * any size streams through. Amounts are added exactly and are never rounded here.
+ */
 public final class SpendingAccumulator {
 
+  /** Largest first; equal amounts fall back to the earlier date, then the description. */
   private static final Comparator<Transaction> LARGEST_FIRST =
       Comparator.comparing(Transaction::amount)
           .reversed()
@@ -351,6 +411,13 @@ The instance fields. `currency`, `largestCount` and `maxRejectedKept` are `priva
 > - **priority queue**: a collection whose head is always the smallest element according to its ordering. Adding and removing the head are fast.
 
 ```java
+  /**
+   * Creates an empty accumulator.
+   *
+   * @param currency the report currency
+   * @param largestCount how many of the largest purchases to keep, at least 1
+   * @param maxRejectedKept how many rejected rows to keep for display, at least 0
+   */
   public SpendingAccumulator(Currency currency, int largestCount, int maxRejectedKept) {
     if (largestCount < 1 || maxRejectedKept < 0) {
       throw new IllegalArgumentException(
@@ -369,6 +436,7 @@ The **constructor**. It validates its limits: `largestCount < 1 || maxRejectedKe
 > - **constructor**: the special method that sets up a new object. It has the class's name, no return type, and runs when you write `new ClassName(...)`.
 
 ```java
+  /** Adds one parsed row to the running totals. */
   public void accept(ParsedRow row) {
     switch (row) {
       case ParsedRow.Ok ok -> add(ok.transaction());
@@ -414,6 +482,7 @@ The only way to feed the accumulator. This is a **pattern-matching switch** over
 Counts the rejected row (`rejectedCount++`, always) and keeps the row itself only while fewer than `maxRejectedKept` are stored. A file full of bad rows therefore cannot use unlimited memory, yet the printed count stays exact.
 
 ```java
+  /** Returns the report for everything accepted so far. */
   public SpendingReport report() {
     List<MonthlyTotals> months =
         totals.entrySet().stream().map(SpendingAccumulator::month).toList();
@@ -469,8 +538,15 @@ import java.util.function.Consumer;
 | `Consumer` | `java.util.function.Consumer` | a function that takes a value and returns nothing |
 
 ```java
+/** Port: where transaction rows come from. Rows are pushed one at a time so nothing is held. */
 public interface RowSource {
 
+  /**
+   * Reads every data row in file order and hands each to the consumer as it is parsed.
+   *
+   * @param consumer receives one {@link ParsedRow} per non-blank data line
+   * @throws InputUnreadableException when the source as a whole cannot be read
+   */
   void readRows(Consumer<ParsedRow> consumer);
 }
 ```
@@ -492,6 +568,7 @@ package com.plainround.spend.application;
 ```
 
 ```java
+/** The input file as a whole cannot be read (missing, not UTF-8, I/O failure), unlike a bad row. */
 public final class InputUnreadableException extends RuntimeException {
 
   private static final long serialVersionUID = 1L;
@@ -505,6 +582,12 @@ public final class InputUnreadableException extends RuntimeException {
 > - **serialVersionUID**: a version number Java asks for on exception classes because they can be written to a stream. The compiler flag `-Xlint:all` would warn without it, and `-Werror` turns warnings into errors.
 
 ```java
+  /**
+   * Creates the exception.
+   *
+   * @param message what is wrong with the input, written for the person running the tool
+   * @param cause the underlying failure
+   */
   public InputUnreadableException(String message, Throwable cause) {
     super(message, cause);
   }
@@ -537,6 +620,7 @@ import java.util.Currency;
 | `Currency` | `java.util.Currency` | an ISO 4217 currency such as USD, with its number of minor-unit digits |
 
 ```java
+/** Use case: stream every row from a {@link RowSource} into a {@link SpendingReport}. */
 public final class BuildSpendingReport {
 
   private final RowSource source;
@@ -552,6 +636,14 @@ A **final** class with four `private final` fields: the `RowSource` port (in the
 > - **final**: can be set once and never changed. On a field: assigned in the constructor and then fixed. On a class: no other class may extend it.
 
 ```java
+  /**
+   * Creates the use case.
+   *
+   * @param source where the rows come from
+   * @param currency the report currency
+   * @param largestCount how many largest purchases to list
+   * @param maxRejectedKept how many rejected rows to keep for display
+   */
   public BuildSpendingReport(
       RowSource source, Currency currency, int largestCount, int maxRejectedKept) {
     this.source = source;
@@ -568,6 +660,7 @@ The constructor stores the four values. It receives the source through the const
 > - **dependency injection**: giving an object the things it needs through its constructor instead of letting it create them. A test can then hand in a fake.
 
 ```java
+  /** Reads the whole source and returns the report. */
   public SpendingReport run() {
     SpendingAccumulator accumulator =
         new SpendingAccumulator(currency, largestCount, maxRejectedKept);
@@ -597,6 +690,13 @@ import java.util.Map;
 | `Map` | `java.util.Map` | a collection of key-value pairs |
 
 ```java
+/**
+ * Configuration read from the environment (twelve-factor) with validated defaults.
+ *
+ * @param reportCurrency the currency of the report; rows in other currencies are rejected
+ * @param largestCount how many largest purchases to list
+ * @param maxRejectedKept how many rejected rows to keep for display
+ */
 public record Settings(Currency reportCurrency, int largestCount, int maxRejectedKept) {
 
   private static final String DEFAULT_CURRENCY = "USD";
@@ -605,6 +705,7 @@ public record Settings(Currency reportCurrency, int largestCount, int maxRejecte
 A record of three values: the report currency, how many largest purchases to list, and how many rejected rows to keep. The first lines of the body declare `DEFAULT_CURRENCY = "USD"`, a constant (`private static final`) used when the variable is missing.
 
 ```java
+  /** Validates the values. */
   public Settings {
     if (largestCount < 1) {
       throw new IllegalArgumentException("SPEND_TOP must be at least 1: " + largestCount);
@@ -619,6 +720,14 @@ A record of three values: the report currency, how many largest purchases to lis
 The compact constructor validates: the largest-purchase count must be at least 1 and the rejected-rows limit must not be negative. The messages name the environment variable (`SPEND_TOP`, `SPEND_MAX_REJECTED`) so the person can find the setting that is wrong.
 
 ```java
+  /**
+   * Reads {@code SPEND_CURRENCY} (default USD), {@code SPEND_TOP} (default 5) and {@code
+   * SPEND_MAX_REJECTED} (default 1000).
+   *
+   * @param environment the variables, normally {@link System#getenv()}
+   * @return validated settings
+   * @throws IllegalArgumentException when a value is malformed
+   */
   public static Settings fromEnvironment(Map<String, String> environment) {
     return new Settings(
         currency(environment.getOrDefault("SPEND_CURRENCY", DEFAULT_CURRENCY)),
@@ -635,6 +744,7 @@ A **static** factory method that builds settings from a `Map<String, String>` of
 > - **environment variable**: a named text setting that a program inherits from the process that started it, for example `LOG_LEVEL=DEBUG`. Programs read them to be configured without changing code.
 
 ```java
+  /** Returns these settings with another currency. */
   public Settings withCurrency(String code) {
     return new Settings(currency(code), largestCount, maxRejectedKept);
   }
@@ -643,6 +753,7 @@ A **static** factory method that builds settings from a `Map<String, String>` of
 Returns a *new* `Settings` with a different currency; records cannot be changed, so a command-line option produces a copy. This and the next method are used for the `--currency` and `--top` options.
 
 ```java
+  /** Returns these settings with another largest-purchase count. */
   public Settings withLargestCount(int count) {
     return new Settings(reportCurrency, count, maxRejectedKept);
   }
@@ -702,6 +813,7 @@ import java.util.List;
 | `List` | `java.util.List` | an ordered collection of elements |
 
 ```java
+/** Splits one CSV line on commas that are not inside double quotes. */
 final class CsvFieldSplitter {
 
   private CsvFieldSplitter() {}
@@ -710,6 +822,12 @@ final class CsvFieldSplitter {
 No `public` word: the class is visible only inside its own package (`infrastructure.csv`). It is `final`. The constructor is `private` and empty, which prevents anyone from creating an instance; the class is only a holder for one static method.
 
 ```java
+  /**
+   * Splits a line into trimmed fields; quote characters are removed from the result.
+   *
+   * @param line one line of CSV text
+   * @return the fields, never empty (an empty line is one empty field)
+   */
   static List<String> split(String line) {
     List<String> fields = new ArrayList<>();
     StringBuilder current = new StringBuilder();
@@ -770,10 +888,15 @@ import java.util.regex.Pattern;
 | `Pattern` | `java.util.regex.Pattern` | a compiled regular expression |
 
 ```java
+/**
+ * Turns one CSV line into a {@link ParsedRow}. Never throws for bad input: every failure becomes a
+ * {@link ParsedRow.Rejected} whose reason a person can act on.
+ */
 public final class CsvRowParser {
 
   private static final int COLUMNS = 5;
 
+  /** Plain decimals only: BigDecimal also accepts exponents such as 1E+999999999, a memory bomb. */
   private static final Pattern PLAIN_DECIMAL = Pattern.compile("[+-]?\\d+(\\.\\d+)?");
 
   private final Currency reportCurrency;
@@ -786,6 +909,11 @@ Three fields: `COLUMNS` (the number of columns a good row must have, 5), `PLAIN_
 > - **regular expression**: a short pattern language for text shapes: `\d` is a digit, `+` means one or more, `?` optional, `[+-]` one of the two signs, `(...)` a group, `.` any character. A `Pattern` is a compiled one and `matcher(text).matches()` asks whether the whole text fits.
 
 ```java
+  /**
+   * Creates a parser.
+   *
+   * @param reportCurrency the only currency accepted; other currencies are rejected
+   */
   public CsvRowParser(Currency reportCurrency) {
     this.reportCurrency = reportCurrency;
   }
@@ -794,6 +922,13 @@ Three fields: `COLUMNS` (the number of columns a good row must have, 5), `PLAIN_
 The constructor remembers the one currency the report accepts.
 
 ```java
+  /**
+   * Parses one data line.
+   *
+   * @param lineNumber the line number in the file, header counted as line 1
+   * @param line the raw line
+   * @return {@link ParsedRow.Ok} or {@link ParsedRow.Rejected}
+   */
   public ParsedRow parse(int lineNumber, String line) {
     List<String> fields = CsvFieldSplitter.split(line);
     if (fields.size() != COLUMNS) {
@@ -914,6 +1049,10 @@ import org.slf4j.LoggerFactory;
 | `LoggerFactory` | `org.slf4j.LoggerFactory` | creates loggers |
 
 ```java
+/**
+ * Reads a UTF-8 CSV file lazily: the header is skipped, a byte-order mark is stripped, blank lines
+ * are ignored and line numbers count the header as line 1.
+ */
 public final class CsvFileRowSource implements RowSource {
 
   private static final Logger LOG = LoggerFactory.getLogger(CsvFileRowSource.class);
@@ -931,6 +1070,12 @@ The class **implements** `RowSource`. `LOG` is a **logger** named after the clas
 > - **logger**: an object that writes log lines with a level (`INFO`, `WARN`, ...). The log engine decides where they go and how they look.
 
 ```java
+  /**
+   * Creates a source.
+   *
+   * @param path the CSV file
+   * @param parser parses one data line
+   */
   public CsvFileRowSource(Path path, CsvRowParser parser) {
     this.path = path;
     this.parser = parser;
@@ -1027,6 +1172,10 @@ import java.util.Locale;
 | `Locale` | `java.util.Locale` | a language and region setting; fixing it makes number formatting identical on every machine |
 
 ```java
+/**
+ * Renders a {@link SpendingReport} as text. This is the only place money is rounded: once, at print
+ * time, half-even, so that the rounding error of a long column of values does not lean one way.
+ */
 final class ReportPrinter {
 
   private final PrintStream out;
@@ -1126,6 +1275,7 @@ One purchase line: amount right-aligned in 12 characters, two spaces, the date, 
 `shown` is how many rejects are stored; `suffix` becomes `, showing the first N` if fewer are shown than were rejected, otherwise empty. The heading prints the exact count, then a for-each loop loop prints `line N: reason` for each stored reject.
 
 ```java
+  /** Rounds half-even to the currency's minor units, then formats with US grouping everywhere. */
   private String money(BigDecimal amount) {
     BigDecimal rounded = amount.setScale(fractionDigits, RoundingMode.HALF_EVEN);
     return String.format(Locale.US, "%,." + fractionDigits + "f", rounded);
@@ -1182,14 +1332,23 @@ import org.slf4j.LoggerFactory;
 | `LoggerFactory` | `org.slf4j.LoggerFactory` | creates loggers |
 
 ```java
+/**
+ * Command line entry point: {@code spend [--currency CODE] [--top N] FILE}. Results go to standard
+ * output, logs to standard error. Exit status: 0 clean, 1 file unreadable, 2 some rows rejected, 64
+ * wrong usage.
+ */
 public final class SpendCli {
 
+  /** Exit status when every row was read. */
   public static final int EXIT_OK = 0;
 
+  /** Exit status when the file as a whole could not be read. */
   public static final int EXIT_UNREADABLE = 1;
 
+  /** Exit status when at least one row was rejected, so a script can notice. */
   public static final int EXIT_REJECTS = 2;
 
+  /** Exit status for wrong command-line usage or configuration. */
   public static final int EXIT_USAGE = 64;
 
   private static final Logger LOG = LoggerFactory.getLogger(SpendCli.class);
@@ -1219,6 +1378,15 @@ Four public constants name the exit statuses: `0` all rows read, `1` the file ca
 The constructor; it is package-private so only this class and the tests in the same package can create one.
 
 ```java
+  /**
+   * Runs the tool.
+   *
+   * @param args the command-line arguments
+   * @param environment the environment variables
+   * @param out where the report goes
+   * @param err where usage errors go
+   * @return the exit status
+   */
   public static int run(
       List<String> args, Map<String, String> environment, PrintStream out, PrintStream err) {
     return new SpendCli(environment, out, err).execute(args);
@@ -1228,6 +1396,11 @@ The constructor; it is package-private so only this class and the tests in the s
 The testable entry: given the arguments and the streams it returns the exit status instead of ending the program. It creates an instance and calls `execute`.
 
 ```java
+  /**
+   * Process entry point.
+   *
+   * @param args the command-line arguments
+   */
   public static void main(String[] args) {
     System.exit(run(List.of(args), System.getenv(), System.out, System.err));
   }
@@ -1285,6 +1458,7 @@ If the arguments contain `--help` or `-h`, print the usage on standard output an
 Wires the layers: the parser for the report currency, the file source for the file, then the use case `BuildSpendingReport` (the long expression ends with `.run()`), then the printer prints the report, a log line records the counts, and the status is 2 if there were rejects, else 0 (a conditional expression). If the source throws `InputUnreadableException`, a short message goes to standard error and the status is 1; no stack trace appears.
 
 ```java
+  /** The parsed command line. */
   private record Arguments(Path file, Settings settings) {
 
     static Arguments parse(List<String> args, Settings defaults) {
@@ -1376,6 +1550,7 @@ import com.tngtech.archunit.lang.ArchRule;
 | `ArchRule` | `com.tngtech.archunit.lang.ArchRule` | the type of one architecture rule |
 
 ```java
+/** The dependency rule from the README's "Project structure", enforced on every test run. */
 @AnalyzeClasses(
     packages = "com.plainround.spend",
     importOptions = ImportOption.DoNotIncludeTests.class)
@@ -1497,6 +1672,7 @@ class BuildSpendingReportTest {
 `USD` is a constant: `Currency.getInstance("USD")` looks up the currency object for the code.
 
 ```java
+  /** In-memory fake of the port; no file is touched. */
   private static RowSource rows(ParsedRow... rows) {
     return consumer -> List.of(rows).forEach(consumer);
   }
@@ -2202,6 +2378,10 @@ import org.junit.jupiter.api.Test;
 | `Test` | `org.junit.jupiter.api.Test` | marks a method as a test |
 
 ```java
+/**
+ * The five parser tests the lesson asks for, one fault each. {@code scripts/prove-quote-test.sh}
+ * deletes the quote handling and expects exactly one of these to fail.
+ */
 class CsvRowParserTest {
 
   private final CsvRowParser parser = new CsvRowParser(Currency.getInstance("USD"));
@@ -2321,6 +2501,7 @@ import org.junit.jupiter.api.Test;
 | `Test` | `org.junit.jupiter.api.Test` | marks a method as a test |
 
 ```java
+/** End to end: the lesson's 25-row file through the command line, compared with its output. */
 class LessonScenarioTest {
 
   private static final Path SAMPLE = Path.of("sample/transactions.csv");
