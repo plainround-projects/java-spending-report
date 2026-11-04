@@ -10,6 +10,24 @@
 | **Java** | 25 (the current long-term-support release; the lesson names no version) |
 | **Architecture** | [ARCHITECTURE.md](ARCHITECTURE.md), decisions in [docs/adr](docs/adr) |
 
+## Architecture
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/architecture-dark.svg">
+  <img alt="The spend jar runs in one JVM. SpendCli builds BuildSpendingReport, which reads the CSV through CsvFileRowSource and CsvRowParser into SpendingAccumulator, then ReportPrinter prints the report to the terminal and SpendCli returns the exit status." src="docs/diagrams/architecture.svg">
+</picture>
+
+Rows stream along the bottom row from the CSV file to SpendingAccumulator; only ReportPrinter rounds money, and the amber note is the quote bug that make quote-check proves.
+
+## How one run flows
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/diagrams/flow-dark.svg">
+  <img alt="One run of spend over the 25-row sample: SpendCli starts the read, CsvRowParser turns each line into Ok or Rejected, SpendingAccumulator sums them, and SpendCli exits with status 2 because ten rows were rejected." src="docs/diagrams/flow.svg">
+</picture>
+
+The run reads the sample once; the amber row shows a bad row becoming data instead of a crash, so the report still prints and the exit status says 2.
+
 ## Prerequisites
 
 | Tool | Version | Used for |
